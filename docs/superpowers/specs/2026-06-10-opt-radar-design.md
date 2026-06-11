@@ -114,7 +114,7 @@ Field mapping notes: opt-pulse `pp_date` ≈ premium filing/upgrade date → `pp
 6. **Trend lines** — weekly application-cohort median processing time (computed only for cohorts ≥ 70% resolved, to avoid censoring distortion); approvals per week; premium-vs-regular median gap over time.
 7. **Stage funnel** — median days for applied→biometrics, biometrics→approval, approval→card produced, produced→received.
 8. **RFE/NOID panel** — rates and median timeline penalty (approved-with-RFE vs approved-without).
-9. **Service center comparison** — opt-tracker cases only; median days + counts per center.
+9. **Service center comparison** — any case with service-center data (both sources normalize to `service_center`; coverage is sparse, mostly opt-tracker).
 10. **Day-of-week heat** — approvals by weekday.
 11. **Snapshot diff** — vs previous snapshot day: newly appeared cases, newly approved, field changes. Surfaces late reporters (case pending for months suddenly shows approval).
 12. **Data quality panel** — per-field null rates, censoring rate, stale-pending count, dedup merges, source conflicts, fetch errors.

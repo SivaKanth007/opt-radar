@@ -38,7 +38,10 @@ function renderMeta() {
   const banner = $('#stale-banner');
   if (bad.length) {
     banner.classList.remove('hidden');
-    banner.textContent = `⚠ Source failed: ${bad.map(([k, v]) => `${k}${v.fallback ? ' (using older snapshot)' : ''}`).join(', ')}`;
+    banner.textContent = `⚠ Source failed: ${bad.map(([k, v]) =>
+      `${k}${v.fallback ? ` (using snapshot from ${v.fallback_date || 'an earlier day'})` : ''}`).join(', ')}`;
+  } else {
+    banner.classList.add('hidden');
   }
 }
 
@@ -123,7 +126,20 @@ function renderAll() {
 
 $('#refresh-btn').addEventListener('click', async () => {
   $('#refresh-btn').disabled = true; $('#refresh-btn').textContent = 'Refreshing…';
-  try { await fetch('/api/refresh', { method: 'POST' }); await load(); }
+  try {
+    const r = await fetch('/api/refresh', { method: 'POST' });
+    if (!r.ok) {
+      const banner = $('#stale-banner');
+      banner.classList.remove('hidden');
+      banner.textContent = `⚠ Refresh failed (HTTP ${r.status}) — showing previous data`;
+      return;
+    }
+    await load();
+  } catch (e) {
+    const banner = $('#stale-banner');
+    banner.classList.remove('hidden');
+    banner.textContent = `⚠ Refresh failed: ${e.message} — showing previous data`;
+  }
   finally { $('#refresh-btn').disabled = false; $('#refresh-btn').textContent = 'Refresh data'; }
 });
 
@@ -206,7 +222,8 @@ window.renderCalculator = function renderCalculator() {
       <label>Type <select name="type"><option value="initial">Initial OPT</option><option value="stem">STEM ext.</option></select></label>
       <label><input type="checkbox" name="ppstart"> premium from start</label>
       <button type="submit">Project</button>`;
-    const saved = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch { /* corrupt store — start fresh */ }
     if (saved) for (const [k, v] of Object.entries(saved)) {
       const f = form.elements[k];
       if (f) f.type === 'checkbox' ? (f.checked = v) : (f.value = v);

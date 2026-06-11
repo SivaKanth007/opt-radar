@@ -58,7 +58,7 @@ async function latestSnapshotFile(snapshotsDir, filename) {
   for (const d of days) {
     const f = path.join(snapshotsDir, d, filename);
     if (existsSync(f)) {
-      try { return JSON.parse(await readFile(f, 'utf8')); } catch { /* skip corrupt/partial file */ }
+      try { return { data: JSON.parse(await readFile(f, 'utf8')), date: d }; } catch { /* skip corrupt/partial file */ }
     }
   }
   return null;
@@ -76,8 +76,9 @@ export async function run({ dataDir = path.join(import.meta.dirname, 'data'), to
     await writeFile(path.join(dayDir, 'optpulse.json'), JSON.stringify(optpulse));
     sources.optpulse = { ok: true, count: optpulse.length };
   } catch (err) {
-    optpulse = await latestSnapshotFile(snapshotsDir, 'optpulse.json');
-    sources.optpulse = { ok: false, error: String(err), fallback: !!optpulse, count: optpulse?.length ?? 0 };
+    const fb = await latestSnapshotFile(snapshotsDir, 'optpulse.json');
+    optpulse = fb?.data ?? null;
+    sources.optpulse = { ok: false, error: String(err), fallback: !!fb, fallback_date: fb?.date ?? null, count: optpulse?.length ?? 0 };
   }
 
   let opttracker = null;
@@ -86,8 +87,9 @@ export async function run({ dataDir = path.join(import.meta.dirname, 'data'), to
     await writeFile(path.join(dayDir, 'opttracker.json'), JSON.stringify(opttracker));
     sources.opttracker = { ok: true, count: opttracker.length };
   } catch (err) {
-    opttracker = await latestSnapshotFile(snapshotsDir, 'opttracker.json');
-    sources.opttracker = { ok: false, error: String(err), fallback: !!opttracker, count: opttracker?.length ?? 0 };
+    const fb = await latestSnapshotFile(snapshotsDir, 'opttracker.json');
+    opttracker = fb?.data ?? null;
+    sources.opttracker = { ok: false, error: String(err), fallback: !!fb, fallback_date: fb?.date ?? null, count: opttracker?.length ?? 0 };
   }
 
   try {
