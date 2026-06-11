@@ -130,3 +130,64 @@ $('#refresh-btn').addEventListener('click', async () => {
 export { $, el, card, fmt, good, approvedCases, durations, DATA, TODAY };
 window.getData = () => DATA;
 load();
+
+// ---------- Calendars ----------
+function monthGrid(year, month /* 0-based */) {
+  const wrap = el('div', 'month');
+  wrap.append(el('div', 'month-title', `${year}-${String(month + 1).padStart(2, '0')}`));
+  const grid = el('div', 'month-days');
+  const first = new Date(Date.UTC(year, month, 1));
+  for (let i = 0; i < first.getUTCDay(); i++) grid.append(el('div', 'day empty'));
+  const days = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  for (let d = 1; d <= days; d++) {
+    const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const cell = el('div', 'day');
+    cell.dataset.date = iso;
+    grid.append(cell);
+  }
+  wrap.append(grid);
+  return wrap;
+}
+
+function renderCalendar(containerSel, perDate, colorFn, titleFn) {
+  const container = $(containerSel);
+  container.replaceChildren();
+  const dates = [...perDate.keys()].sort();
+  if (!dates.length) { container.textContent = 'no data'; return; }
+  let [y, m] = dates[0].split('-').map(Number); m -= 1;
+  const [ey, em] = dates[dates.length - 1].split('-').map(Number);
+  while (y < ey || (y === ey && m <= em - 1)) {
+    container.append(monthGrid(y, m));
+    m++; if (m > 11) { m = 0; y++; }
+  }
+  for (const cell of container.querySelectorAll('.day[data-date]')) {
+    const v = perDate.get(cell.dataset.date);
+    if (v !== undefined) {
+      cell.style.background = colorFn(v);
+      cell.title = `${cell.dataset.date}: ${titleFn(v)}`;
+    }
+  }
+}
+
+window.renderCalendars = function renderCalendars() {
+  const cases = DATA.cases.filter(c => good(c));
+  // Cohort: per applied date {total, approved}
+  const cohort = new Map();
+  for (const c of cases) {
+    if (!c.date_applied) continue;
+    const v = cohort.get(c.date_applied) || { total: 0, approved: 0 };
+    v.total++; if (c.date_approved) v.approved++;
+    cohort.set(c.date_applied, v);
+  }
+  renderCalendar('#cal-cohort', cohort,
+    v => `hsl(${Math.round(120 * (v.approved / v.total))} 70% 35%)`,
+    v => `${v.approved}/${v.total} approved (${Math.round(100 * v.approved / v.total)}%)`);
+
+  // Volume: per approval date count
+  const vol = new Map();
+  for (const c of cases) if (c.date_approved) vol.set(c.date_approved, (vol.get(c.date_approved) || 0) + 1);
+  const max = Math.max(1, ...vol.values());
+  renderCalendar('#cal-volume', vol,
+    v => `hsl(210 80% ${20 + Math.round(45 * v / max)}%)`,
+    v => `${v} approvals`);
+};
