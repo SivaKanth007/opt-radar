@@ -191,3 +191,117 @@ window.renderCalendars = function renderCalendars() {
     v => `hsl(210 80% ${20 + Math.round(45 * v / max)}%)`,
     v => `${v} approvals`);
 };
+
+// ---------- Calculator ----------
+const LS_KEY = 'opt-radar-mycase';
+
+window.renderCalculator = function renderCalculator() {
+  const form = $('#calc-form');
+  if (!form.dataset.built) {
+    form.dataset.built = '1';
+    form.innerHTML = `
+      <label>Applied <input type="date" name="applied" required></label>
+      <label>Biometrics <input type="date" name="biometrics"></label>
+      <label>PP upgrade <input type="date" name="pp"></label>
+      <label>Type <select name="type"><option value="initial">Initial OPT</option><option value="stem">STEM ext.</option></select></label>
+      <label><input type="checkbox" name="ppstart"> premium from start</label>
+      <button type="submit">Project</button>`;
+    const saved = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+    if (saved) for (const [k, v] of Object.entries(saved)) {
+      const f = form.elements[k];
+      if (f) f.type === 'checkbox' ? (f.checked = v) : (f.value = v);
+    }
+    form.addEventListener('submit', (e) => { e.preventDefault(); compute(); });
+  }
+  if (form.elements.applied.value) compute();
+
+  function compute() {
+    const v = Object.fromEntries(new FormData(form));
+    const state = { applied: v.applied, biometrics: v.biometrics, pp: v.pp, type: v.type, ppstart: !!form.elements.ppstart.checked };
+    localStorage.setItem(LS_KEY, JSON.stringify(state));
+    if (!state.applied) return;
+
+    const today = DATA.today || TODAY;
+    const premium = state.ppstart || !!state.pp;
+    const ppMode = premium;
+    const ppStart = state.pp || state.applied;
+    const start = ppMode ? ppStart : state.applied;
+
+    const { cohort, windowDays, premiumFilterDropped } = matchCohort(DATA.cases, {
+      refDate: start, optType: state.type, premium,
+      dateField: ppMode ? 'pp_start' : 'date_applied',
+    });
+    const obs = buildObservations(cohort, { today, staleCap: DATA.stale_cutoff_days, mode: ppMode ? 'pp' : 'applied' });
+
+    // Empty-cohort guard (contract warning 2)
+    if (cohort.length === 0) {
+      const out = $('#calc-out');
+      out.replaceChildren(el('p', 'muted',
+        'No comparable cases found in data — try different dates/type.'));
+      renderSimilar(state, today);
+      return;
+    }
+
+    const events = obs.filter(o => o.event).map(o => o.t);
+    const naive = naivePercentiles(events, [0.1, 0.5, 0.9]);
+    const curve = kmCurve(obs);
+    const elapsed = daysBetween(start, today);
+    const censShare = obs.length ? (obs.length - events.length) / obs.length : 0;
+
+    const dateOf = (d) => d == null ? 'not reached in data' : `${addDays(start, d)} (day ${d})`;
+    const condOf = (p) => {
+      const t = kmConditionalQuantile(curve, elapsed, p);
+      return t == null ? 'not reached in data' : `${addDays(start, t)} (${t - elapsed} more days)`;
+    };
+
+    const rows = [
+      ['Best case (p10)', dateOf(naive?.p10), dateOf(kmQuantile(curve, 0.1))],
+      ['Typical (median)', dateOf(naive?.p50), dateOf(kmQuantile(curve, 0.5))],
+      ['Worst case (p90)', dateOf(naive?.p90), dateOf(kmQuantile(curve, 0.9))],
+      [`Given you've waited ${elapsed}d — median`, '', condOf(0.5)],
+      [`Given you've waited ${elapsed}d — p90`, '', condOf(0.9)],
+    ];
+    const out = $('#calc-out');
+    out.replaceChildren();
+    out.append(el('p', 'muted',
+      `${ppMode ? 'Premium clock from ' + ppStart : 'Regular clock from ' + state.applied}` +
+      ` · cohort n=${cohort.length} (±${windowDays}d${premiumFilterDropped ? ', premium filter dropped' : ''})` +
+      ` · ${Math.round(censShare * 100)}% still pending (censored)`));
+    if (ppMode) out.append(el('p', null,
+      `USCIS premium 30-business-day deadline: ${addBusinessDays(ppStart, 30)} (weekends skipped, federal holidays not)`));
+    const tbl = el('table');
+    tbl.innerHTML = '<tr><th></th><th>Naive (approved only)</th><th>Survival-adjusted</th></tr>';
+    for (const [label, a, b] of rows) {
+      const tr = el('tr');
+      tr.innerHTML = `<td>${label}</td><td>${a}</td><td>${b}</td>`;
+      tbl.append(tr);
+    }
+    out.append(tbl);
+    renderSimilar(state, today);
+  }
+};
+
+function renderSimilar(state, today) {
+  const premium = state.ppstart || !!state.pp;
+  const sims = DATA.cases
+    .filter(c => good(c) && c.date_applied && c.opt_type === state.type && c.premium === premium
+      && Math.abs(daysBetween(state.applied, c.date_applied)) <= 14)
+    .sort((a, b) => Math.abs(daysBetween(state.applied, a.date_applied)) - Math.abs(daysBetween(state.applied, b.date_applied)))
+    .slice(0, 50);
+  const out = $('#similar-out');
+  if (!sims.length) { out.textContent = 'No cases within ±14 days with same type/premium.'; return; }
+  const tbl = el('table');
+  tbl.innerHTML = '<tr><th>Applied</th><th>Biometrics</th><th>PP upgrade</th><th>Approved</th><th>Card</th><th>Days</th><th>Status</th><th>Link</th></tr>';
+  for (const c of sims) {
+    const days = c.date_approved ? daysBetween(c.date_applied, c.date_approved) : daysBetween(c.date_applied, today);
+    const status = c.date_approved ? 'approved' : ((c.flags || []).includes('stale_pending') ? 'stale' : 'pending');
+    const tr = el('tr');
+    if (status === 'approved') tr.className = 'ok';
+    tr.innerHTML = `<td>${c.date_applied}</td><td>${c.biometrics_date ?? '—'}</td><td>${c.pp_upgrade_date ?? '—'}</td>` +
+      `<td>${c.date_approved ?? '—'}</td><td>${c.card_received ?? c.card_produced ?? '—'}</td>` +
+      `<td>${days}${c.date_approved ? '' : '+'}</td><td>${status}</td>` +
+      `<td>${c.reddit_url ? `<a href="${c.reddit_url}" target="_blank">reddit</a>` : '—'}</td>`;
+    tbl.append(tr);
+  }
+  out.replaceChildren(tbl);
+}
