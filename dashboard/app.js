@@ -305,3 +305,108 @@ function renderSimilar(state, today) {
   }
   out.replaceChildren(tbl);
 }
+
+// ---------- Trends & aggregates ----------
+function isoWeek(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  const day = (d.getUTCDay() + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - day + 3);
+  const firstThu = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+  const fday = (firstThu.getUTCDay() + 6) % 7;
+  firstThu.setUTCDate(firstThu.getUTCDate() - fday + 3);
+  const week = 1 + Math.round((d - firstThu) / (7 * 86400000));
+  return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
+function median(arr) { const s = [...arr].sort((a, b) => a - b); return s.length ? quantileSorted(s, 0.5) : null; }
+
+const CHART_OPTS = { plugins: { legend: { labels: { color: '#cbd5e1' } } }, scales: { x: { ticks: { color: '#94a3b8' } }, y: { ticks: { color: '#94a3b8' } } } };
+
+window.renderTrendsAll = function renderTrendsAll() {
+  // Destroy existing charts before re-creating (prevents stacking on Refresh)
+  if (window.Chart) [...document.querySelectorAll('canvas')].forEach(c => Chart.getChart(c)?.destroy());
+
+  const cases = DATA.cases.filter(c => good(c) && c.date_applied);
+  const today = DATA.today || TODAY;
+
+  // 1. Weekly application-cohort median (only cohorts >= 70% resolved)
+  const byWeek = new Map();
+  for (const c of cases) {
+    const w = isoWeek(c.date_applied);
+    if (!byWeek.has(w)) byWeek.set(w, []);
+    byWeek.get(w).push(c);
+  }
+  const weeks = [...byWeek.keys()].sort();
+  const cohortMedians = weeks.map(w => {
+    const list = byWeek.get(w);
+    const resolved = list.filter(c => c.date_approved);
+    if (list.length < 5 || resolved.length / list.length < 0.7) return null;
+    return median(resolved.map(c => daysBetween(c.date_applied, c.date_approved)).filter(d => d >= 0));
+  });
+  new Chart($('#trend-cohort'), { type: 'line', options: CHART_OPTS,
+    data: { labels: weeks, datasets: [{ label: 'median days to approval by application week (≥70% resolved)', data: cohortMedians, borderColor: '#34d399', spanGaps: true }] } });
+
+  // 2. Approvals per week
+  const apprWeeks = new Map();
+  for (const c of cases) if (c.date_approved) {
+    const w = isoWeek(c.date_approved);
+    apprWeeks.set(w, (apprWeeks.get(w) || 0) + 1);
+  }
+  const aw = [...apprWeeks.keys()].sort();
+  new Chart($('#trend-volume'), { type: 'bar', options: CHART_OPTS,
+    data: { labels: aw, datasets: [{ label: 'approvals per week', data: aw.map(w => apprWeeks.get(w)), backgroundColor: '#60a5fa' }] } });
+
+  // 3. Premium vs regular median gap per week (weeks with >=5 of each)
+  const gap = weeks.map(w => {
+    const list = byWeek.get(w).filter(c => c.date_approved);
+    const pp = list.filter(c => c.premium).map(c => daysBetween(c.date_applied, c.date_approved));
+    const reg = list.filter(c => !c.premium).map(c => daysBetween(c.date_applied, c.date_approved));
+    return pp.length >= 5 && reg.length >= 5 ? median(reg) - median(pp) : null;
+  });
+  new Chart($('#trend-gap'), { type: 'line', options: CHART_OPTS,
+    data: { labels: weeks, datasets: [{ label: 'regular minus premium median days (per application week)', data: gap, borderColor: '#f59e0b', spanGaps: true }] } });
+
+  // Funnel
+  const stage = (from, to) => median(DATA.cases
+    .filter(c => good(c) && c[from] && c[to] && daysBetween(c[from], c[to]) >= 0)
+    .map(c => daysBetween(c[from], c[to])));
+  $('#funnel-out').replaceChildren(
+    card(fmt(stage('date_applied', 'biometrics_date')), 'applied → biometrics (median d)'),
+    card(fmt(stage('biometrics_date', 'date_approved')), 'biometrics → approved'),
+    card(fmt(stage('date_approved', 'card_produced')), 'approved → card produced'),
+    card(fmt(stage('card_produced', 'card_received')), 'produced → received'),
+  );
+
+  // RFE / NOID
+  const withRfe = cases.filter(c => c.rfe_date);
+  const apprRfe = withRfe.filter(c => c.date_approved).map(c => daysBetween(c.date_applied, c.date_approved));
+  const apprNoRfe = cases.filter(c => !c.rfe_date && c.date_approved).map(c => daysBetween(c.date_applied, c.date_approved));
+  $('#rfe-out').replaceChildren(
+    card(`${(100 * withRfe.length / cases.length).toFixed(1)}%`, 'RFE rate'),
+    card(fmt(median(apprRfe)), 'median days with RFE'),
+    card(fmt(median(apprNoRfe)), 'median days without RFE'),
+    card(apprRfe.length && apprNoRfe.length ? `+${fmt(median(apprRfe) - median(apprNoRfe))}` : '—', 'RFE penalty (days)'),
+  );
+
+  // Service centers
+  const byCenter = new Map();
+  for (const c of cases) if (c.service_center && c.date_approved) {
+    if (!byCenter.has(c.service_center)) byCenter.set(c.service_center, []);
+    byCenter.get(c.service_center).push(daysBetween(c.date_applied, c.date_approved));
+  }
+  const ct = el('table');
+  ct.innerHTML = '<tr><th>Center</th><th>n approved</th><th>Median days</th></tr>';
+  for (const [name, ds] of [...byCenter.entries()].sort((a, b) => b[1].length - a[1].length)) {
+    const tr = el('tr');
+    tr.innerHTML = `<td>${name}</td><td>${ds.length}</td><td>${fmt(median(ds))}</td>`;
+    ct.append(tr);
+  }
+  $('#centers-out').replaceChildren(byCenter.size ? ct : el('p', 'muted', 'No service-center data.'));
+
+  // Weekday
+  const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const wd = [0, 0, 0, 0, 0, 0, 0];
+  for (const c of cases) if (c.date_approved) wd[new Date(c.date_approved + 'T00:00:00Z').getUTCDay()]++;
+  new Chart($('#weekday-chart'), { type: 'bar', options: CHART_OPTS,
+    data: { labels: names, datasets: [{ label: 'approvals by weekday', data: wd, backgroundColor: '#a78bfa' }] } });
+};
