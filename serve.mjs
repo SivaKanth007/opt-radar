@@ -28,7 +28,13 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (p === '/') p = '/dashboard/index.html';
+  // Redirect / to /dashboard/ so the page's relative asset URLs (app.js, style.css) resolve inside the whitelist.
+  if (p === '/') {
+    res.writeHead(302, { Location: '/dashboard/' });
+    res.end();
+    return;
+  }
+  if (p === '/dashboard/') p = '/dashboard/index.html';
   if (!ALLOWED.some(a => a.endsWith('/') ? p.startsWith(a) : p === a)) {
     res.writeHead(404); res.end('not found'); return;
   }
