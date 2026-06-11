@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile, readdir } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, readdir, rename } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -39,6 +39,8 @@ export function discoverThreadId(optpulseCases) {
 
 async function crawlOptTracker() {
   const first = await fetchJson(`${OPTTRACKER_CASES}?page=1`);
+  if (!first.total_pages) console.warn('opt-tracker: total_pages missing — API shape may have changed, crawling page 1 only');
+  // Page count fixed from page 1's response; mid-crawl growth is picked up on the next daily run.
   const pages = Math.min(first.total_pages || 1, MAX_PAGES);
   const all = [...(first.cases || [])];
   for (let p = 2; p <= pages; p++) {
@@ -55,7 +57,9 @@ async function latestSnapshotFile(snapshotsDir, filename) {
   const days = (await readdir(snapshotsDir)).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort().reverse();
   for (const d of days) {
     const f = path.join(snapshotsDir, d, filename);
-    if (existsSync(f)) return JSON.parse(await readFile(f, 'utf8'));
+    if (existsSync(f)) {
+      try { return JSON.parse(await readFile(f, 'utf8')); } catch { /* skip corrupt/partial file */ }
+    }
   }
   return null;
 }
@@ -131,8 +135,14 @@ export async function run({ dataDir = path.join(import.meta.dirname, 'data'), to
   latest.warnings = drift;
 
   const diff = buildDiff(prev, latest);
-  await writeFile(path.join(dataDir, 'diff.json'), JSON.stringify(diff, null, 1));
-  await writeFile(latestPath, JSON.stringify(latest));
+  // Atomic writes (tmp + rename) so the dashboard never reads a truncated JSON mid-refresh.
+  const writeJsonAtomic = async (dest, obj, spaces) => {
+    const tmp = dest + '.tmp';
+    await writeFile(tmp, JSON.stringify(obj, null, spaces));
+    await rename(tmp, dest);
+  };
+  await writeJsonAtomic(path.join(dataDir, 'diff.json'), diff, 1);
+  await writeJsonAtomic(latestPath, latest);
 
   const summary = {
     cases: latest.cases.length, sources,
