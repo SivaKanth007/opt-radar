@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OPT Radar</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<header>
+  <h1>OPT Radar</h1>
+  <div id="meta"></div>
+  <button id="refresh-btn">Refresh data</button>
+  <div id="stale-banner" class="banner hidden"></div>
+</header>
+<main>
+  <section id="headline"><h2>Right now</h2><div id="headline-cards" class="cards"></div>
+    <div id="recent-approvals"></div></section>
+  <section id="calculator"><h2>My timeline</h2><form id="calc-form"></form><div id="calc-out"></div></section>
+  <section id="similar"><h2>Similar cases</h2><div id="similar-out"></div></section>
+  <section id="calendars"><h2>Calendars</h2>
+    <h3>Cohort completion — % of applicants from each day already approved</h3><div id="cal-cohort" class="cal"></div>
+    <h3>Approval volume — approvals per day</h3><div id="cal-volume" class="cal"></div></section>
+  <section id="trends"><h2>Trends</h2>
+    <canvas id="trend-cohort" height="90"></canvas>
+    <canvas id="trend-volume" height="90"></canvas>
+    <canvas id="trend-gap" height="90"></canvas></section>
+  <section id="funnel"><h2>Stage funnel</h2><div id="funnel-out" class="cards"></div></section>
+  <section id="rfe"><h2>RFE / NOID</h2><div id="rfe-out" class="cards"></div></section>
+  <section id="centers"><h2>Service centers</h2><div id="centers-out"></div></section>
+  <section id="weekday"><h2>Approvals by weekday</h2><canvas id="weekday-chart" height="80"></canvas></section>
+  <section id="diff"><h2>New since previous snapshot</h2><div id="diff-out"></div></section>
+  <section id="quality"><h2>Data quality</h2><div id="quality-out"></div></section>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>
