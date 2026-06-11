@@ -1,0 +1,10 @@
+{
+  "name": "opt-radar",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/",
+    "fetch": "node fetch-data.mjs",
+    "serve": "node serve.mjs"
+  }
+}
