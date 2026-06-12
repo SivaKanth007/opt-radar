@@ -1,72 +1,74 @@
 # OPT Radar
 
-Personal local OPT/EAD analytics dashboard. Pulls data from two community trackers (opt-pulse and opt-tracker, both sourced from the [r/f1visa Reddit megathread](https://reddit.com/r/f1visa) + user submissions). Computes survival-adjusted timelines and generates daily snapshots.
+Community analytics dashboard for **OPT / STEM-OPT EAD processing timelines**. Merges case data from two public community trackers ([opt-pulse](https://opt-pulse.vercel.app) and [opt-tracker](https://opt-tracker.com), both ultimately sourced from the [r/f1visa](https://reddit.com/r/f1visa) timeline megathread and user submissions), deduplicates across sources, and computes both naive and **survival-adjusted (Kaplan-Meier)** timeline estimates.
 
-## Quick Start
+**Live dashboard:** https://sivakanth007.github.io/opt-radar/ — auto-updates hourly via GitHub Actions.
+
+## Features
+
+- Headline stats: earliest/latest approvals, p10/p50/p90 days (naive *and* survival-adjusted)
+- Two calendars: per-application-date approval completion %, and approvals-per-day volume
+- **My Timeline calculator** — enter your applied / biometrics / premium-upgrade dates, get best/typical/worst projected approval dates from a matched cohort, plus conditional estimates ("given you've already waited N days")
+- Similar-cases table with links to the original Reddit reports
+- Weekly trends, stage funnel, RFE impact, service-center comparison, approvals by weekday
+- Data-quality panel: censoring rates, anomaly flags, source health
+
+## Run Locally
+
+Requires Node.js 24+. No npm dependencies.
 
 ```bash
-# Fetch fresh data from opt-pulse and opt-tracker APIs
-node fetch-data.mjs
-
-# Start the dashboard server
-node serve.mjs
+node fetch-data.mjs   # pull fresh data from both trackers (~35s, idempotent per day)
+node serve.mjs        # dashboard at http://localhost:3777
 ```
 
-Open http://localhost:3777 in your browser.
-
-The server includes a **Refresh** button that runs `node fetch-data.mjs` via POST `/api/refresh` without stopping the server.
+The local server adds a **Refresh** button (POST `/api/refresh`) that re-runs the fetch without restarting.
 
 ## Data Layout
 
-- **`data/snapshots/YYYY-MM-DD/`** — Raw per-source JSON files from each daily run:
-  - `optpulse.json` — Snapshot from opt-pulse
-  - `opttracker.json` — Snapshot from opt-tracker (paginated)
-  - `opttracker-stats.json` — Reference histograms (archived as-is)
-  - `reddit-raw.json` — Raw megathread JSON (if discoverable; failures non-fatal)
+- `data/snapshots/YYYY-MM-DD/` — raw per-source JSON per day (`optpulse.json`, `opttracker.json`, `opttracker-stats.json`, `reddit-raw.json` when available)
+- `data/latest.json` — merged, deduplicated, normalized dataset + metadata
+- `data/diff.json` — changes vs the previous run (new cases, newly approved)
 
-- **`data/latest.json`** — Merged + deduplicated cases from both sources with normalized schema, computed flags, and metadata
-
-- **`data/diff.json`** — Change summary: new cases, newly approved (vs previous snapshot), source health
-
-*`data/` directory is gitignored; only snapshots persist locally.*
+`data/` is gitignored — snapshots persist only on the machine that runs the fetch. The hosted copy regenerates data in CI each hour.
 
 ## Stats Modes
 
-The dashboard displays two timeline estimates:
+**Naive** — approved cases only. Optimistically biased: people who get approved fast report fast; slow and pending cases are invisible.
 
-### Naive (Optimistic Bias)
-Based on approved cases only. People who get approved fast report quickly; slow or pending cases stay invisible.
+**Survival-adjusted (Kaplan-Meier)** — pending cases enter as right-censored ("at least N days"). **Stale-pending rule:** pending cases older than the p99 of approved durations are likely approved-but-never-updated; they are censored at that cutoff instead of their raw age.
 
-### Survival-Adjusted (Kaplan-Meier)
-Accounts for censoring: pending cases count as "at least N days elapsed."
+Both numbers are always shown side by side, labeled.
 
-**Stale-Pending Rule:** Pending cases older than the p99 of approved durations are assumed approved-but-never-updated. They're censored at the p99 cutoff, effectively treating them as if they crossed that threshold.
+## Optional: Reddit Raw Archive
 
-## Automation: Windows Task Scheduler
+The fetch also tries to archive the raw megathread JSON as insurance. Reddit requires OAuth for this: create a free **script** app (after [registering for Data API access](https://support.reddithelp.com/hc/en-us/requests/new?ticket_form_id=14868593862164)), then put your credentials in `data/reddit-auth.json`:
 
-To auto-fetch daily at 9 AM:
-
-```powershell
-schtasks /Create /SC DAILY /ST 09:00 /TN "OPT Radar fetch" /TR "node D:\Job_Hunt\opt-radar\fetch-data.mjs"
+```json
+{
+  "client_id": "YOUR_CLIENT_ID",
+  "client_secret": "YOUR_CLIENT_SECRET"
+}
 ```
 
-To remove:
+The file is gitignored. Without it the archive step fails gracefully — all dashboard analytics work regardless.
+
+## Scheduled Fetch (local)
+
+Windows Task Scheduler example (run from the project directory):
 
 ```powershell
-schtasks /Delete /TN "OPT Radar fetch" /F
+schtasks /Create /SC DAILY /ST 09:00 /TN "OPT Radar fetch" /TR "node %CD%\fetch-data.mjs"
 ```
+
+The hosted copy needs no scheduling — `.github/workflows/pages.yml` fetches and redeploys hourly.
 
 ## Development
 
-- **`npm test`** — Run all unit tests (stats, merge, cohort, fetch helpers)
-- **`npm run fetch`** — Alias for `node fetch-data.mjs`
-- **`npm run serve`** — Alias for `node serve.mjs`
+```bash
+npm test    # unit tests: stats (KM math), merge/dedup, cohort matching, fetch helpers
+```
 
 ## Disclaimer
 
-**This is community self-reported data, not USCIS official data.** The sample is biased toward Reddit-active users. Estimates are descriptive, not predictive—do not use them for legal or immigration strategy decisions. Baseline durations vary widely by nationality, service center, and FY. Always consult with an immigration attorney for case-specific advice.
-
-Data sources:
-- [opt-pulse](https://opt-pulse.com) — Community tracker
-- [opt-tracker](https://opt-tracker.com) — Community tracker with approval workflow stages
-
+**Community self-reported data, not USCIS data.** The sample is biased toward Reddit-active applicants. Estimates are descriptive, not predictive — do not use them for legal or immigration decisions. Consult an immigration attorney for case-specific advice.
