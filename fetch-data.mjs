@@ -37,6 +37,38 @@ export function discoverThreadId(optpulseCases) {
   return best;
 }
 
+// Reddit blocks anonymous JSON since ~2026. With a free "script" app (data/reddit-auth.json:
+// { client_id, client_secret }) we use OAuth client_credentials; without credentials we still
+// try anonymously so the failure stays visible (and non-fatal) in sources.reddit.
+const REDDIT_UA = 'windows:opt-radar:1.0 (personal local analytics)';
+
+async function fetchRedditThread(threadId, dataDir) {
+  let auth = null;
+  try {
+    const raw = JSON.parse(await readFile(path.join(dataDir, 'reddit-auth.json'), 'utf8'));
+    if (raw.client_id && raw.client_secret && !String(raw.client_id).startsWith('PASTE_')) auth = raw;
+  } catch { /* no credentials file — anonymous attempt below */ }
+
+  if (!auth) return fetchJson(`https://www.reddit.com/comments/${threadId}.json`);
+
+  const tokenRes = await fetch('https://www.reddit.com/api/v1/access_token', {
+    method: 'POST',
+    headers: {
+      Authorization: 'Basic ' + Buffer.from(`${auth.client_id}:${auth.client_secret}`).toString('base64'),
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'User-Agent': REDDIT_UA,
+    },
+    body: 'grant_type=client_credentials',
+  });
+  if (!tokenRes.ok) throw new Error(`reddit token HTTP ${tokenRes.status}`);
+  const { access_token } = await tokenRes.json();
+  const res = await fetch(`https://oauth.reddit.com/comments/${threadId}.json?limit=500&depth=1`, {
+    headers: { Authorization: `Bearer ${access_token}`, 'User-Agent': REDDIT_UA },
+  });
+  if (!res.ok) throw new Error(`reddit thread HTTP ${res.status}`);
+  return res.json();
+}
+
 async function crawlOptTracker() {
   const first = await fetchJson(`${OPTTRACKER_CASES}?page=1`);
   if (!first.total_pages) console.warn('opt-tracker: total_pages missing — API shape may have changed, crawling page 1 only');
@@ -100,7 +132,7 @@ export async function run({ dataDir = path.join(import.meta.dirname, 'data'), to
   try {
     const threadId = discoverThreadId(optpulse || []);
     if (threadId) {
-      const raw = await fetchJson(`https://www.reddit.com/comments/${threadId}.json`);
+      const raw = await fetchRedditThread(threadId, dataDir);
       await writeFile(path.join(dayDir, 'reddit-raw.json'), JSON.stringify(raw));
       sources.reddit = { ok: true, threadId };
     } else sources.reddit = { ok: false, error: 'no thread id discovered' };
