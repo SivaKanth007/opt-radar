@@ -1,6 +1,6 @@
-import { daysBetween, addDays, addBusinessDays, localToday } from '/lib/dates.mjs';
-import { naivePercentiles, kmCurve, kmQuantile, kmConditionalQuantile, kmSurvivalAt, quantileSorted } from '/lib/stats.mjs';
-import { matchCohort, buildObservations } from '/lib/cohort.mjs';
+import { daysBetween, addDays, addBusinessDays, localToday } from '../lib/dates.mjs';
+import { naivePercentiles, kmCurve, kmQuantile, kmConditionalQuantile, kmSurvivalAt, quantileSorted } from '../lib/stats.mjs';
+import { matchCohort, buildObservations } from '../lib/cohort.mjs';
 
 const $ = (sel) => document.querySelector(sel);
 const fmt = (n) => n == null ? '—' : Math.round(n);
@@ -12,8 +12,8 @@ const TODAY = localToday();
 
 async function load() {
   const [latest, diff] = await Promise.all([
-    fetch('/data/latest.json').then(r => r.ok ? r.json() : null),
-    fetch('/data/diff.json').then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch('../data/latest.json').then(r => r.ok ? r.json() : null),
+    fetch('../data/diff.json').then(r => r.ok ? r.json() : null).catch(() => null),
   ]);
   if (!latest) {
     document.body.innerHTML = '<main><h1>No data yet</h1><p>Run <code>node fetch-data.mjs</code> first.</p></main>';
@@ -142,6 +142,13 @@ $('#refresh-btn').addEventListener('click', async () => {
   }
   finally { $('#refresh-btn').disabled = false; $('#refresh-btn').textContent = 'Refresh data'; }
 });
+
+// Hosted (GitHub Pages) copy is static: no /api/refresh server — hide the button,
+// data updates via the hourly Action instead. Local serve.mjs keeps the button.
+if (location.hostname.endsWith('github.io')) $('#refresh-btn').classList.add('hidden');
+
+// Keep long-lived tabs fresh: re-pull data every 30 minutes.
+setInterval(load, 30 * 60 * 1000);
 
 export { $, el, card, fmt, good, approvedCases, durations, DATA, TODAY };
 window.getData = () => DATA;
