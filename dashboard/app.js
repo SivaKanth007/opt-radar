@@ -233,6 +233,20 @@ function showTip(cell) {
 
 window.renderCalendars = function renderCalendars() {
   const cases = DATA.cases.filter(c => good(c));
+
+  // Calendars start where the data gets consistent: first month with >=10% of the
+  // busiest month's applications. Lone early stragglers (a 2024-11 case in a dataset
+  // that really begins 2026-01) are anomalies, not the cohort. Stats elsewhere still
+  // use all cases — this only trims the calendar display.
+  const byMonth = new Map();
+  for (const c of cases) if (c.date_applied) {
+    const m = c.date_applied.slice(0, 7);
+    byMonth.set(m, (byMonth.get(m) || 0) + 1);
+  }
+  const peak = Math.max(1, ...byMonth.values());
+  const startMonth = [...byMonth.keys()].sort().find(m => byMonth.get(m) >= Math.max(10, peak * 0.1)) || '';
+  const fromStart = (map) => new Map([...map].filter(([d]) => d.slice(0, 7) >= startMonth));
+
   // Cohort: per applied date {total, approved}
   const cohort = new Map();
   for (const c of cases) {
@@ -241,7 +255,7 @@ window.renderCalendars = function renderCalendars() {
     v.total++; if (c.date_approved) v.approved++;
     cohort.set(c.date_applied, v);
   }
-  renderCalendar('#cal-cohort', cohort,
+  renderCalendar('#cal-cohort', fromStart(cohort),
     v => `hsl(${Math.round(120 * (v.approved / v.total))} 70% 35%)`,
     v => `${v.approved}/${v.total} approved (${Math.round(100 * v.approved / v.total)}%)`);
 
@@ -249,7 +263,7 @@ window.renderCalendars = function renderCalendars() {
   const vol = new Map();
   for (const c of cases) if (c.date_approved) vol.set(c.date_approved, (vol.get(c.date_approved) || 0) + 1);
   const max = Math.max(1, ...vol.values());
-  renderCalendar('#cal-volume', vol,
+  renderCalendar('#cal-volume', fromStart(vol),
     v => `hsl(210 80% ${20 + Math.round(45 * v / max)}%)`,
     v => `${v} approvals`);
 };
