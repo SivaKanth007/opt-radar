@@ -46,6 +46,8 @@ jobs:
           cp -r dashboard site/dashboard
           cp -r lib site/lib
           cp data/latest.json data/diff.json site/data/
+          # Cache-bust CSS/JS per deploy so browsers pick up changes immediately
+          sed -i "s/__BUILD__/${{ github.run_id }}/g" site/dashboard/index.html
           cat > site/index.html <<'EOF'
           <!doctype html><meta http-equiv="refresh" content="0; url=dashboard/">
           EOF
