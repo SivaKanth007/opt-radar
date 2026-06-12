@@ -188,24 +188,47 @@ function renderCalendar(containerSel, perDate, colorFn, titleFn) {
     const v = perDate.get(cell.dataset.date);
     if (v !== undefined) {
       cell.style.background = colorFn(v);
-      cell.title = `${cell.dataset.date}: ${titleFn(v)}`;
+      cell.dataset.tip = `${cell.dataset.date}: ${titleFn(v)}`;
     }
   }
 
-  // Touch devices have no hover tooltips — tapping a day shows its details below the calendar.
-  let info = container.nextElementSibling;
-  if (!info || !info.classList.contains('cal-info')) {
-    info = el('div', 'cal-info');
-    container.after(info);
-  }
-  info.textContent = 'Tap or hover a day for details';
+  // Floating tooltip above the cell: hover on desktop, tap on touch.
+  const tip = calTip();
+  container.onmouseover = (e) => { const c = e.target.closest('.day[data-tip]'); if (c) showTip(c); };
+  container.onmouseout = (e) => { if (e.target.closest('.day')) tip.classList.add('hidden'); };
   container.onclick = (e) => {
-    const cell = e.target.closest('.day[data-date]');
-    if (!cell || !cell.title) return;
+    const c = e.target.closest('.day[data-tip]');
     container.querySelector('.day.selected')?.classList.remove('selected');
-    cell.classList.add('selected');
-    info.textContent = cell.title;
+    if (!c) { tip.classList.add('hidden'); return; }
+    c.classList.add('selected');
+    showTip(c);
   };
+}
+
+function calTip() {
+  let tip = document.querySelector('#cal-tip');
+  if (!tip) {
+    tip = el('div');
+    tip.id = 'cal-tip';
+    tip.classList.add('hidden');
+    document.body.append(tip);
+    // Fixed-position tooltip goes stale when anything scrolls — just hide it.
+    document.addEventListener('scroll', () => tip.classList.add('hidden'), { passive: true, capture: true });
+  }
+  return tip;
+}
+
+function showTip(cell) {
+  const tip = calTip();
+  tip.textContent = cell.dataset.tip;
+  tip.classList.remove('hidden');
+  const r = cell.getBoundingClientRect();
+  const half = tip.offsetWidth / 2 + 6;
+  const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+  let left = r.left + r.width / 2;
+  if (vw > half * 2) left = Math.min(Math.max(left, half), vw - half); // clamp only with a sane viewport
+  tip.style.left = left + 'px';
+  tip.style.top = (r.top - 8) + 'px';
 }
 
 window.renderCalendars = function renderCalendars() {
