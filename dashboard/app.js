@@ -6,6 +6,7 @@ const $ = (sel) => document.querySelector(sel);
 const fmt = (n) => n == null ? '—' : Math.round(n);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 function card(value, label) { const c = el('div', 'card'); c.append(el('div', 'value', String(value)), el('div', 'label', label)); return c; }
+function wrapTable(tbl) { const w = el('div', 'table-wrap'); w.append(tbl); return w; }
 
 let DATA = null, DIFF = null;
 const TODAY = localToday();
@@ -76,7 +77,7 @@ function renderHeadline() {
     tbl.append(tr);
   }
   const wrap = $('#recent-approvals');
-  wrap.replaceChildren(el('h3', null, '10 most recent approvals'), tbl);
+  wrap.replaceChildren(el('h3', null, '10 most recent approvals'), wrapTable(tbl));
 }
 
 function renderDiffPanel() {
@@ -91,7 +92,7 @@ function renderDiffPanel() {
       tr.innerHTML = `<td>${a.date_applied ?? '—'}</td><td>${a.date_approved}</td><td>${a.days ?? '—'}</td><td>${a.reddit_url ? `<a href="${a.reddit_url}" target="_blank">reddit</a>` : '—'}</td>`;
       tbl.append(tr);
     }
-    bits.push(tbl);
+    bits.push(wrapTable(tbl));
   }
   out.replaceChildren(...bits);
 }
@@ -102,7 +103,7 @@ function renderQuality() {
   const flagCount = (f) => DATA.cases.filter(c => (c.flags || []).includes(f)).length;
   const s = DATA.sources || {};
   $('#quality-out').innerHTML = `
-    <table>
+    <div class="table-wrap"><table>
       <tr><th>Metric</th><th>Value</th></tr>
       <tr><td>Sources</td><td>optpulse ${s.optpulse?.count ?? '—'} · opttracker ${s.opttracker?.count ?? '—'} · merged ${s.merged ?? 0} · conflicts ${s.conflicts ?? 0}</td></tr>
       <tr><td>Censoring (pending share)</td><td>${(100 * DATA.cases.filter(c => !c.date_approved).length / n).toFixed(0)}%</td></tr>
@@ -110,7 +111,7 @@ function renderQuality() {
       <tr><td>Flags</td><td>impossible ${flagCount('impossible_dates')} · outliers ${flagCount('outlier_duration')} · stale ${flagCount('stale_pending')}</td></tr>
       <tr><td>Missing fields</td><td>biometrics ${nullPct('biometrics_date')} · service center ${nullPct('service_center')} · nationality ${nullPct('nationality')} · card received ${nullPct('card_received')}</td></tr>
       <tr><td>Schema warnings</td><td>${(DATA.warnings || []).join('; ') || 'none'}</td></tr>
-    </table>
+    </table></div>
     <p class="muted">Naive stats use approved cases only (biased fast). Survival-adjusted stats count pending cases as "at least N days" (Kaplan-Meier); stale pending cases are censored at the cutoff.</p>`;
 }
 
@@ -190,6 +191,21 @@ function renderCalendar(containerSel, perDate, colorFn, titleFn) {
       cell.title = `${cell.dataset.date}: ${titleFn(v)}`;
     }
   }
+
+  // Touch devices have no hover tooltips — tapping a day shows its details below the calendar.
+  let info = container.nextElementSibling;
+  if (!info || !info.classList.contains('cal-info')) {
+    info = el('div', 'cal-info');
+    container.after(info);
+  }
+  info.textContent = 'Tap or hover a day for details';
+  container.onclick = (e) => {
+    const cell = e.target.closest('.day[data-date]');
+    if (!cell || !cell.title) return;
+    container.querySelector('.day.selected')?.classList.remove('selected');
+    cell.classList.add('selected');
+    info.textContent = cell.title;
+  };
 }
 
 window.renderCalendars = function renderCalendars() {
@@ -300,7 +316,7 @@ window.renderCalculator = function renderCalculator() {
       tr.innerHTML = `<td>${label}</td><td>${a}</td><td>${b}</td>`;
       tbl.append(tr);
     }
-    out.append(tbl);
+    out.append(wrapTable(tbl));
     renderSimilar(state, today);
   }
 };
@@ -327,7 +343,7 @@ function renderSimilar(state, today) {
       `<td>${c.reddit_url ? `<a href="${c.reddit_url}" target="_blank">reddit</a>` : '—'}</td>`;
     tbl.append(tr);
   }
-  out.replaceChildren(tbl);
+  out.replaceChildren(wrapTable(tbl));
 }
 
 // ---------- Trends & aggregates ----------
@@ -344,7 +360,7 @@ function isoWeek(dateStr) {
 
 function median(arr) { const s = [...arr].sort((a, b) => a - b); return s.length ? quantileSorted(s, 0.5) : null; }
 
-const CHART_OPTS = { plugins: { legend: { labels: { color: '#cbd5e1' } } }, scales: { x: { ticks: { color: '#94a3b8' } }, y: { ticks: { color: '#94a3b8' } } } };
+const CHART_OPTS = { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#cbd5e1' } } }, scales: { x: { ticks: { color: '#94a3b8' } }, y: { ticks: { color: '#94a3b8' } } } };
 
 window.renderTrendsAll = function renderTrendsAll() {
   // Destroy existing charts before re-creating (prevents stacking on Refresh)
@@ -425,7 +441,7 @@ window.renderTrendsAll = function renderTrendsAll() {
     tr.innerHTML = `<td>${name}</td><td>${ds.length}</td><td>${fmt(median(ds))}</td>`;
     ct.append(tr);
   }
-  $('#centers-out').replaceChildren(byCenter.size ? ct : el('p', 'muted', 'No service-center data.'));
+  $('#centers-out').replaceChildren(byCenter.size ? wrapTable(ct) : el('p', 'muted', 'No service-center data.'));
 
   // Weekday
   const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
