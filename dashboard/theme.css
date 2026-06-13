@@ -266,7 +266,10 @@ h3 {
   justify-content: center;
   position: relative;
 }
-.ring-wrap svg { display: block; transform: rotate(-90deg); }
+/* util.mjs ring() rotates only its progress arc internally and draws upright
+   center text — so the whole-svg rotation that a CSS-only ring would need must
+   NOT be applied here, or the % label tips sideways. */
+.ring-wrap svg { display: block; }
 .ring-wrap .ring-track {
   fill: none;
   stroke: rgba(140, 165, 220, 0.16);
