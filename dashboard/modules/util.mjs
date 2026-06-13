@@ -17,6 +17,24 @@
  * @param {ParentNode} [root=document]
  * @returns {Element|null}
  */
+/**
+ * cssVar — read a CSS custom property off :root, with a fallback.
+ * Lets SVG/canvas code (which can't use var() in attributes) follow the active
+ * light/dark palette. Reads live at call time, so re-rendering after a
+ * color-scheme change picks up the new value.
+ * @param {string} name  e.g. '--text'
+ * @param {string} [fallback]
+ * @returns {string}
+ */
+export function cssVar(name, fallback = '') {
+  try {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export const $ = (sel, root = document) => root.querySelector(sel);
 
 /**
@@ -181,7 +199,7 @@ export function ring({ percent, size = 120, label, sublabel } = {}) {
   track.setAttribute('cx', CX); track.setAttribute('cy', CX);
   track.setAttribute('r',  R);
   track.setAttribute('fill', 'none');
-  track.setAttribute('stroke', 'rgba(255,255,255,0.06)');
+  track.setAttribute('stroke', cssVar('--ring-track', 'rgba(140,165,220,0.2)'));
   track.setAttribute('stroke-width', STROKE);
   svg.append(track);
 
@@ -218,7 +236,7 @@ export function ring({ percent, size = 120, label, sublabel } = {}) {
   centerLabel.setAttribute('y', sublabel ? CX - size * 0.07 : CX + size * 0.06);
   centerLabel.setAttribute('text-anchor', 'middle');
   centerLabel.setAttribute('dominant-baseline', 'middle');
-  centerLabel.setAttribute('fill', '#f1f5f9');
+  centerLabel.setAttribute('fill', cssVar('--text', '#f1f5f9'));
   centerLabel.setAttribute('font-size', size * 0.22);
   centerLabel.setAttribute('font-weight', '700');
   centerLabel.setAttribute('font-family', 'inherit');
@@ -231,7 +249,7 @@ export function ring({ percent, size = 120, label, sublabel } = {}) {
     sub.setAttribute('y', CX + size * 0.18);
     sub.setAttribute('text-anchor', 'middle');
     sub.setAttribute('dominant-baseline', 'middle');
-    sub.setAttribute('fill', '#94a3b8');
+    sub.setAttribute('fill', cssVar('--muted', '#94a3b8'));
     sub.setAttribute('font-size', size * 0.12);
     sub.setAttribute('font-family', 'inherit');
     sub.textContent = sublabel;
@@ -286,7 +304,8 @@ export function toast(message, type = 'info', { timeout = 6000 } = {}) {
   Object.assign(item.style, {
     background:     colors.bg,
     border:         `1px solid ${colors.border}`,
-    color:          colors.text,
+    borderLeft:     `3px solid ${colors.border}`,
+    color:          cssVar('--text', colors.text), // adapt to light/dark; keep colored accent border
     padding:        '12px 18px',
     borderRadius:   '10px',
     fontSize:       '13px',

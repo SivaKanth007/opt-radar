@@ -28,21 +28,51 @@ const WEEKS_SHOWN  = 16;   // last N approval-weeks rendered on the time charts
 const MAX_DURATION = 400;  // sanity cap on applied->approved durations (days)
 const MIN_GROUP    = 4;    // min n per side for the premium/regular comparison
 
-// Theme-aligned palette (matches theme.css CSS vars; Chart.js needs literals).
-const COLORS = {
-  axis:        '#94a3b8',  // --muted-ish tick labels
-  legend:      '#cbd5e1',
-  grid:        'rgba(140, 165, 220, 0.10)',
-  accent:      '#22d3ee',  // electric cyan (--accent)
+// Theme-aligned palette. Chart.js needs literal color strings, so we read the
+// live CSS variables at render time — this makes the charts follow the active
+// light/dark scheme. Defaults below are the dark-theme fallbacks.
+let COLORS = {
+  axis:        '#8b97b0',
+  legend:      '#e8edf7',
+  grid:        'rgba(140, 165, 220, 0.14)',
+  accent:      '#22d3ee',
   accentFill:  'rgba(34, 211, 238, 0.16)',
   bandFill:    'rgba(34, 211, 238, 0.12)',
-  bar:         'rgba(59, 130, 246, 0.55)',  // --accent-blue, translucent
+  bar:         '#3b82f6',
   barBorder:   '#3b82f6',
-  movingAvg:   '#7c5cff',  // violet (--accent-2)
-  premium:     '#34d399',  // good green
-  regular:     '#fbbf24',  // warn amber
-  pointHalo:   '#0a0e1a',  // --bg, for point borders
+  movingAvg:   '#7c5cff',
+  premium:     '#34d399',
+  regular:     '#fbbf24',
+  pointHalo:   '#0a0e1a',
+  tooltipBg:   'rgba(7, 10, 19, 0.92)',
+  tooltipTitle:'#e8edf7',
+  tooltipBody: '#cbd5e1',
 };
+
+/** Read the active palette from CSS variables (follows light/dark). */
+function readPalette() {
+  const v = (name, fb) => {
+    try { return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fb; }
+    catch { return fb; }
+  };
+  return {
+    axis:         v('--muted', COLORS.axis),
+    legend:       v('--text', COLORS.legend),
+    grid:         v('--border', COLORS.grid),
+    accent:       v('--accent', COLORS.accent),
+    accentFill:   COLORS.accentFill,   // low-alpha cyan reads fine on both
+    bandFill:     COLORS.bandFill,
+    bar:          v('--accent-blue', COLORS.bar),
+    barBorder:    v('--accent-blue', COLORS.barBorder),
+    movingAvg:    v('--accent-2', COLORS.movingAvg),
+    premium:      v('--good', COLORS.premium),
+    regular:      v('--warn', COLORS.regular),
+    pointHalo:    v('--bg', COLORS.pointHalo),
+    tooltipBg:    v('--tooltip-bg', COLORS.tooltipBg),
+    tooltipTitle: v('--text', COLORS.tooltipTitle),
+    tooltipBody:  v('--muted', COLORS.tooltipBody),
+  };
+}
 
 const CANVASES = [
   { id: 'trends-momentum',   title: 'Processing Momentum' },
@@ -153,11 +183,11 @@ function baseOptions(yTitle) {
     plugins: {
       legend: { labels: { color: COLORS.legend, boxWidth: 12, usePointStyle: true } },
       tooltip: {
-        backgroundColor: 'rgba(7, 10, 19, 0.92)',
-        borderColor: 'rgba(140, 165, 220, 0.28)',
+        backgroundColor: COLORS.tooltipBg,
+        borderColor: COLORS.grid,
         borderWidth: 1,
-        titleColor: '#e8edf7',
-        bodyColor: '#cbd5e1',
+        titleColor: COLORS.tooltipTitle,
+        bodyColor: COLORS.tooltipBody,
         padding: 10,
       },
     },
@@ -393,6 +423,9 @@ function renderPremium(ctx, ppByWeek, regByWeek, weeks) {
  * @param {object} ctx  orchestrator context (see module contract)
  */
 export function render(ctx) {
+  // 0) Refresh the palette from CSS vars so charts follow the active light/dark scheme.
+  COLORS = readPalette();
+
   // 1) Destroy any existing charts on our canvases (prevents stacking on re-render).
   for (const { id } of CANVASES) {
     const c = document.getElementById(id);

@@ -164,4 +164,14 @@ if (refreshBtn) {
 // Keep long-lived tabs fresh.
 setInterval(load, 30 * 60 * 1000);
 
+// Follow the OS light/dark setting live. CSS variables flip automatically via
+// the prefers-color-scheme media query, but <canvas> charts and SVG rings read
+// colors at build time — so re-render them when the scheme changes.
+try {
+  const mq = window.matchMedia('(prefers-color-scheme: dark)');
+  const onSchemeChange = () => { if (ctx) load(); };
+  if (mq.addEventListener) mq.addEventListener('change', onSchemeChange);
+  else if (mq.addListener) mq.addListener(onSchemeChange); // older Safari
+} catch { /* matchMedia unavailable — static theme is fine */ }
+
 load();

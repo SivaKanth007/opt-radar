@@ -256,21 +256,34 @@ export function render(ctx) {
       return;
     }
 
+    // Follow the active light/dark palette (Chart.js needs literal colors).
+    const cv = (name, fb) => {
+      try { return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fb; }
+      catch { return fb; }
+    };
+    const axis = cv('--muted', '#94a3b8');
+    const legend = cv('--text', '#cbd5e1');
+    const grid = cv('--border', 'rgba(140,165,220,0.10)');
+    const barColor = cv('--accent-2', '#a78bfa');
+
     const CHART_OPTS = {
       responsive: true,
       maintainAspectRatio: false,
       animation: prefersReducedMotion() ? false : undefined,
       plugins: {
-        legend: { labels: { color: '#cbd5e1' } },
+        legend: { labels: { color: legend } },
         tooltip: {
+          backgroundColor: cv('--tooltip-bg', 'rgba(7,10,19,0.92)'),
+          titleColor: legend,
+          bodyColor: axis,
           callbacks: {
             label: (item) => ` ${item.raw} approvals`,
           },
         },
       },
       scales: {
-        x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(140,165,220,0.08)' } },
-        y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(140,165,220,0.08)' }, beginAtZero: true },
+        x: { ticks: { color: axis }, grid: { color: grid } },
+        y: { ticks: { color: axis }, grid: { color: grid }, beginAtZero: true },
       },
     };
 
@@ -282,8 +295,8 @@ export function render(ctx) {
         datasets: [{
           label: 'Approvals by weekday',
           data: counts,
-          backgroundColor: '#a78bfa',
-          borderColor: 'rgba(167,139,250,0.6)',
+          backgroundColor: barColor,
+          borderColor: barColor,
           borderWidth: 1,
           borderRadius: 4,
         }],

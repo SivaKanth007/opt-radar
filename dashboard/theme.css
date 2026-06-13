@@ -36,12 +36,69 @@
   --shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
   --shadow-sm: 0 6px 20px rgba(0, 0, 0, 0.4);
   --blur: blur(16px) saturate(140%);
+
+  /* Surface-derived tokens (flipped under prefers-color-scheme: light below). */
+  --bg-elevated: #121829;               /* deep base for body::after */
+  --chart-bg: rgba(7, 10, 19, 0.4);     /* chart-box inset */
+  --zebra: rgba(255, 255, 255, 0.018);  /* even table rows */
+  --row-hover: rgba(34, 211, 238, 0.08);/* table row hover */
+  --ring-track: rgba(140, 165, 220, 0.20);
+  --tooltip-bg: rgba(7, 10, 19, 0.92);  /* Chart.js tooltip */
+  --aurora-opacity: 1;                  /* ambient glow strength */
+  --btn-text: #051018;                  /* text on gradient buttons */
+}
+
+/* ===================================================================
+   LIGHT THEME — auto-applied when the OS / browser prefers light.
+   Only the palette tokens change; every rule below reads them via var().
+   =================================================================== */
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #eef2f8;
+    --bg-2: #e3e9f3;
+    --surface: #ffffff;
+    --surface-2: #eef2f8;
+    --glass: rgba(255, 255, 255, 0.70);
+    --glass-strong: rgba(255, 255, 255, 0.86);
+
+    --accent: #0891b2;        /* darker cyan for contrast on light */
+    --accent-2: #6d28d9;      /* darker violet */
+    --accent-blue: #2563eb;
+    --grad: linear-gradient(120deg, #0891b2 0%, #2563eb 48%, #6d28d9 100%);
+    --grad-soft: linear-gradient(120deg, rgba(8,145,178,0.10), rgba(109,40,217,0.10));
+    --glow: 0 0 20px rgba(8, 145, 178, 0.22);
+    --glow-violet: 0 0 20px rgba(109, 40, 217, 0.22);
+
+    --good: #059669;
+    --good-glow: 0 0 14px rgba(5, 150, 105, 0.30);
+    --warn: #b45309;
+    --bad: #dc2626;
+
+    --text: #16203a;
+    --muted: #51607a;
+    --faint: #7b88a3;
+
+    --border: rgba(30, 58, 110, 0.14);
+    --border-strong: rgba(30, 58, 110, 0.26);
+
+    --shadow: 0 12px 40px rgba(30, 50, 90, 0.12);
+    --shadow-sm: 0 6px 20px rgba(30, 50, 90, 0.10);
+
+    --bg-elevated: #ffffff;
+    --chart-bg: rgba(20, 40, 80, 0.04);
+    --zebra: rgba(20, 40, 80, 0.035);
+    --row-hover: rgba(8, 145, 178, 0.10);
+    --ring-track: rgba(30, 58, 110, 0.16);
+    --tooltip-bg: rgba(255, 255, 255, 0.96);
+    --aurora-opacity: 0.55;
+    --btn-text: #ffffff;
+  }
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 /* ---------- Base + ambient background ---------- */
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; color-scheme: light dark; }
 
 body {
   background: var(--bg);
@@ -68,6 +125,7 @@ body::before {
     radial-gradient(42vmax 42vmax at 82% 22%, rgba(124, 92, 255, 0.13), transparent 62%),
     radial-gradient(46vmax 46vmax at 50% 96%, rgba(59, 130, 246, 0.10), transparent 64%);
   filter: blur(20px);
+  opacity: var(--aurora-opacity);
   animation: aurora 28s ease-in-out infinite alternate;
 }
 /* Static deep base so the aurora never blows out readability. */
@@ -78,7 +136,7 @@ body::after {
   z-index: -3;
   pointer-events: none;
   background:
-    radial-gradient(120vmax 80vmax at 50% -10%, rgba(18, 24, 41, 0.9), var(--bg) 70%),
+    radial-gradient(120vmax 80vmax at 50% -10%, var(--bg-elevated), var(--bg) 70%),
     var(--bg-2);
 }
 
@@ -332,8 +390,8 @@ td {
   vertical-align: top;
 }
 tr:last-child td { border-bottom: none; }
-tbody tr:nth-child(even) td, tr:nth-child(even) td { background: rgba(255, 255, 255, 0.018); }
-tr:hover td { background: rgba(34, 211, 238, 0.08); }
+tbody tr:nth-child(even) td, tr:nth-child(even) td { background: var(--zebra); }
+tr:hover td { background: var(--row-hover); }
 tr.ok td { color: var(--good); }
 tr.ok td:first-child { box-shadow: inset 2px 0 0 var(--good); }
 
@@ -383,7 +441,6 @@ input[type="date"], input[type="text"], input[type="number"], select {
   font-size: 14px;
   outline: none;
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
-  color-scheme: dark;
 }
 input:focus, select:focus {
   border-color: var(--accent);
@@ -394,7 +451,7 @@ button {
   background: var(--grad);
   background-size: 160% 160%;
   background-position: 0% 50%;
-  color: #051018;
+  color: var(--btn-text);
   border: none;
   border-radius: var(--radius-sm);
   padding: 10px 18px;
@@ -619,7 +676,7 @@ canvas { max-width: 100%; }
   margin-top: 14px;
   padding: 6px;
   border-radius: var(--radius-sm);
-  background: rgba(7, 10, 19, 0.4);
+  background: var(--chart-bg);
   border: 1px solid var(--border);
 }
 .chart-box canvas { margin-top: 0; }
