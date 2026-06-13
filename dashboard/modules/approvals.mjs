@@ -1,0 +1,363 @@
+/**
+ * dashboard/modules/approvals.mjs
+ * Full paginated approvals list with search/filter controls.
+ * Renders into section#approvals.
+ *
+ * MODULE CONTRACT:
+ *   export function render(ctx)          — called once on load
+ *   (no onCaseChange needed — this module does not react to calculator state)
+ */
+
+const PAGE_SIZE = 25;
+
+// Module-local pagination state (survives re-renders of table body).
+let _currentPage = 1;
+// Hold references to filter controls so filter/page rebuilds can read them without
+// querying the DOM repeatedly after the first render.
+let _controls = null;
+// Hold the filtered list so pagination doesn't re-filter on every page turn.
+let _filtered = [];
+// Hold a reference to the section root so partial updates work without a ctx reference.
+let _section = null;
+// Hold ctx-level helpers (set once in render, reused in callbacks).
+let _ctx = null;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Return true when a case is valid for the approvals list. */
+function isApproved(c) {
+  return (
+    c.date_approved != null &&
+    !(c.flags || []).includes('impossible_dates')
+  );
+}
+
+/** Build the sorted, unfiltered base list (most-recent-approval first). */
+function buildBase(cases) {
+  return cases
+    .filter(isApproved)
+    .sort((a, b) => (a.date_approved > b.date_approved ? -1 : a.date_approved < b.date_approved ? 1 : 0));
+}
+
+/** Apply the current filter controls to the base list. */
+function applyFilters(base, controls) {
+  const query = controls.search.value.trim().toLowerCase();
+  const typeVal = controls.type.value;   // 'all' | 'initial' | 'stem'
+  const ppVal = controls.pp.value;       // 'all' | 'premium' | 'regular'
+
+  return base.filter((c) => {
+    // Type filter
+    if (typeVal !== 'all' && c.opt_type !== typeVal) return false;
+    // Premium filter
+    if (ppVal === 'premium' && !c.premium) return false;
+    if (ppVal === 'regular' && c.premium) return false;
+    // Text search: reddit_username, service_center, nationality
+    if (query) {
+      const haystack = [c.reddit_username, c.service_center, c.nationality]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      if (!haystack.includes(query)) return false;
+    }
+    return true;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Table body builder (partial update — controls stay stable)
+// ---------------------------------------------------------------------------
+
+function buildTableBody(ctx, filtered, page) {
+  const { el, fmt, $, wrapTable, dates: { daysBetween } } = ctx;
+
+  const start = (page - 1) * PAGE_SIZE;
+  const slice = filtered.slice(start, start + PAGE_SIZE);
+
+  const tbody = el('tbody');
+
+  if (slice.length === 0) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 8;
+    td.className = 'muted';
+    td.style.textAlign = 'center';
+    td.style.padding = '22px 12px';
+    td.textContent = 'No matching approvals.';
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return tbody;
+  }
+
+  for (const c of slice) {
+    const tr = document.createElement('tr');
+    tr.className = 'ok';
+
+    const days = (c.date_applied && c.date_approved)
+      ? daysBetween(c.date_applied, c.date_approved)
+      : null;
+
+    // Approved date
+    const td1 = document.createElement('td');
+    td1.textContent = c.date_approved ?? '—';
+    tr.appendChild(td1);
+
+    // Applied date
+    const td2 = document.createElement('td');
+    td2.textContent = c.date_applied ?? '—';
+    tr.appendChild(td2);
+
+    // Days
+    const td3 = document.createElement('td');
+    td3.textContent = days != null ? String(days) : '—';
+    tr.appendChild(td3);
+
+    // Type
+    const td4 = document.createElement('td');
+    td4.textContent = c.opt_type ?? '—';
+    tr.appendChild(td4);
+
+    // PP (premium)
+    const td5 = document.createElement('td');
+    td5.textContent = c.premium ? '⚡' : '';
+    td5.style.textAlign = 'center';
+    tr.appendChild(td5);
+
+    // Service center
+    const td6 = document.createElement('td');
+    td6.textContent = c.service_center ?? '—';
+    tr.appendChild(td6);
+
+    // Nationality
+    const td7 = document.createElement('td');
+    td7.textContent = c.nationality ?? '—';
+    tr.appendChild(td7);
+
+    // Link
+    const td8 = document.createElement('td');
+    if (c.reddit_url) {
+      const a = document.createElement('a');
+      a.href = c.reddit_url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = 'reddit';
+      td8.appendChild(a);
+    } else {
+      td8.textContent = '—';
+    }
+    tr.appendChild(td8);
+
+    tbody.appendChild(tr);
+  }
+
+  return tbody;
+}
+
+// ---------------------------------------------------------------------------
+// Pagination controls builder
+// ---------------------------------------------------------------------------
+
+function buildPagination(ctx, totalCount, page) {
+  const { el } = ctx;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+
+  const wrap = el('div');
+  wrap.style.cssText = [
+    'display:flex',
+    'align-items:center',
+    'justify-content:space-between',
+    'flex-wrap:wrap',
+    'gap:10px',
+    'margin-top:12px',
+  ].join(';');
+
+  const info = el('span', 'muted');
+  info.style.fontSize = '12px';
+  const start = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const end = Math.min(page * PAGE_SIZE, totalCount);
+  info.textContent = totalCount === 0
+    ? '0 approvals'
+    : `${start}–${end} of ${totalCount} approval${totalCount !== 1 ? 's' : ''}`;
+
+  const nav = el('div');
+  nav.style.cssText = 'display:flex;align-items:center;gap:10px;';
+
+  const prevBtn = el('button', null, '← Prev');
+  prevBtn.type = 'button';
+  prevBtn.disabled = page <= 1;
+  prevBtn.setAttribute('aria-label', 'Previous page');
+  prevBtn.addEventListener('click', () => goToPage(page - 1));
+
+  const pageLabel = el('span', 'muted');
+  pageLabel.style.fontSize = '12px';
+  pageLabel.textContent = `page ${page} of ${totalPages}`;
+
+  const nextBtn = el('button', null, 'Next →');
+  nextBtn.type = 'button';
+  nextBtn.disabled = page >= totalPages;
+  nextBtn.setAttribute('aria-label', 'Next page');
+  nextBtn.addEventListener('click', () => goToPage(page + 1));
+
+  nav.append(prevBtn, pageLabel, nextBtn);
+  wrap.append(info, nav);
+  return wrap;
+}
+
+// ---------------------------------------------------------------------------
+// Partial update: swap only tbody + pagination, keep controls intact
+// ---------------------------------------------------------------------------
+
+function refreshTable() {
+  if (!_section || !_controls || !_ctx) return;
+
+  const tbody = buildTableBody(_ctx, _filtered, _currentPage);
+  const oldTbody = _section.querySelector('tbody');
+  if (oldTbody) {
+    oldTbody.replaceWith(tbody);
+  }
+
+  const oldPagination = _section.querySelector('.appr-pagination');
+  const newPagination = buildPagination(_ctx, _filtered.length, _currentPage);
+  newPagination.className = 'appr-pagination';
+  if (oldPagination) {
+    oldPagination.replaceWith(newPagination);
+  }
+}
+
+function goToPage(n) {
+  const totalPages = Math.max(1, Math.ceil(_filtered.length / PAGE_SIZE));
+  _currentPage = Math.max(1, Math.min(n, totalPages));
+  refreshTable();
+  // Scroll section into view smoothly so user can see the top of the new page.
+  if (_section) _section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function onFilterChange(base) {
+  _filtered = applyFilters(base, _controls);
+  _currentPage = 1;
+  refreshTable();
+}
+
+// ---------------------------------------------------------------------------
+// render(ctx) — called once by orchestrator
+// ---------------------------------------------------------------------------
+
+export function render(ctx) {
+  const { data, $, el, wrapTable } = ctx;
+
+  _ctx = ctx;
+  _section = document.getElementById('approvals');
+  if (!_section) return;
+  _section.replaceChildren(); // idempotent: rebuild cleanly on every (re-)render
+
+  // Guard: no data
+  if (!data || !data.cases) {
+    _section.append(el('p', 'muted', 'No data available.'));
+    return;
+  }
+
+  const base = buildBase(data.cases);
+  _filtered = base.slice(); // initial: no filters applied
+  _currentPage = 1;
+
+  // ---- Section heading ----
+  const heading = el('h2', null, 'All Approvals');
+  _section.append(heading);
+
+  // ---- Summary badge ----
+  const badge = el('p', 'muted');
+  badge.style.marginBottom = '14px';
+  badge.textContent = `${base.length} approved case${base.length !== 1 ? 's' : ''} in the dataset`;
+  _section.append(badge);
+
+  // ---- Filter row ----
+  const filterRow = document.createElement('div');
+  filterRow.style.cssText = [
+    'display:flex',
+    'flex-wrap:wrap',
+    'gap:10px',
+    'align-items:flex-end',
+    'margin-bottom:14px',
+  ].join(';');
+
+  // Search input
+  const searchLabel = el('label');
+  searchLabel.style.cssText = 'display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--muted);font-weight:500;flex:1 1 180px;min-width:140px;';
+  const searchCaption = document.createElement('span');
+  searchCaption.textContent = 'Search';
+  const searchInput = document.createElement('input');
+  searchInput.type = 'text';
+  searchInput.placeholder = 'username / center / nationality';
+  searchInput.setAttribute('aria-label', 'Search approvals');
+  // iOS no-zoom: font-size 16px on inputs
+  searchInput.style.fontSize = '16px';
+  searchLabel.append(searchCaption, searchInput);
+
+  // Type select
+  const typeLabel = el('label');
+  typeLabel.style.cssText = 'display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--muted);font-weight:500;';
+  const typeCaption = document.createElement('span');
+  typeCaption.textContent = 'Type';
+  const typeSelect = document.createElement('select');
+  typeSelect.setAttribute('aria-label', 'Filter by OPT type');
+  [['all', 'All types'], ['initial', 'Initial OPT'], ['stem', 'STEM ext.']].forEach(([v, t]) => {
+    const o = document.createElement('option');
+    o.value = v; o.textContent = t;
+    typeSelect.append(o);
+  });
+  typeLabel.append(typeCaption, typeSelect);
+
+  // Processing select
+  const ppLabel = el('label');
+  ppLabel.style.cssText = 'display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--muted);font-weight:500;';
+  const ppCaption = document.createElement('span');
+  ppCaption.textContent = 'Processing';
+  const ppSelect = document.createElement('select');
+  ppSelect.setAttribute('aria-label', 'Filter by processing type');
+  [['all', 'All'], ['premium', '⚡ Premium'], ['regular', 'Regular']].forEach(([v, t]) => {
+    const o = document.createElement('option');
+    o.value = v; o.textContent = t;
+    ppSelect.append(o);
+  });
+  ppLabel.append(ppCaption, ppSelect);
+
+  filterRow.append(searchLabel, typeLabel, ppLabel);
+  _section.append(filterRow);
+
+  // Store control refs
+  _controls = { search: searchInput, type: typeSelect, pp: ppSelect };
+
+  // Attach filter listeners (debounce search for perf)
+  let _debounceTimer = null;
+  searchInput.addEventListener('input', () => {
+    clearTimeout(_debounceTimer);
+    _debounceTimer = setTimeout(() => onFilterChange(base), 220);
+  });
+  typeSelect.addEventListener('change', () => onFilterChange(base));
+  ppSelect.addEventListener('change', () => onFilterChange(base));
+
+  // ---- Table ----
+  const table = document.createElement('table');
+
+  const thead = document.createElement('thead');
+  const headerRow = document.createElement('tr');
+  ['Approved', 'Applied', 'Days', 'Type', 'PP', 'Center', 'Nationality', 'Link'].forEach((text) => {
+    const th = document.createElement('th');
+    th.textContent = text;
+    headerRow.append(th);
+  });
+  thead.append(headerRow);
+  table.append(thead);
+
+  // Initial tbody
+  const tbody = buildTableBody(ctx, _filtered, _currentPage);
+  table.append(tbody);
+
+  _section.append(wrapTable(table));
+
+  // ---- Pagination ----
+  const pagination = buildPagination(ctx, _filtered.length, _currentPage);
+  pagination.className = 'appr-pagination';
+  _section.append(pagination);
+}

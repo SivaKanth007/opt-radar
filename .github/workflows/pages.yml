@@ -46,8 +46,10 @@ jobs:
           cp -r dashboard site/dashboard
           cp -r lib site/lib
           cp data/latest.json data/diff.json site/data/
-          # Cache-bust CSS/JS per deploy so browsers pick up changes immediately
-          sed -i "s/__BUILD__/${{ github.run_id }}/g" site/dashboard/index.html
+          # Cache-bust CSS/JS per deploy so browsers pick up changes immediately.
+          # index.html stamps theme.css + app.js query strings; app.js stamps its
+          # module/lib import specifiers (?v=__BUILD__) so ESM imports refetch too.
+          sed -i "s/__BUILD__/${{ github.run_id }}/g" site/dashboard/index.html site/dashboard/app.js
           cat > site/index.html <<'EOF'
           <!doctype html><meta http-equiv="refresh" content="0; url=dashboard/">
           EOF
