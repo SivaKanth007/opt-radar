@@ -4,6 +4,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OPT Radar</title>
+<!-- Resolve theme BEFORE first paint (no flash). Pref: light | dark | system. -->
+<script>
+(function () {
+  try {
+    var pref = localStorage.getItem('opt-radar-theme') || 'system';
+    var eff = pref === 'system'
+      ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+      : pref;
+    document.documentElement.dataset.theme = eff;
+  } catch (e) {
+    document.documentElement.dataset.theme = 'dark';
+  }
+})();
+</script>
 <link rel="stylesheet" href="theme.css?v=__BUILD__">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 </head>
@@ -11,6 +25,11 @@
 <header>
   <h1>OPT Radar</h1>
   <div id="meta"></div>
+  <div id="theme-toggle" class="theme-toggle" role="group" aria-label="Theme">
+    <button type="button" data-theme-pref="light" title="Light" aria-label="Light theme">☀</button>
+    <button type="button" data-theme-pref="dark" title="Dark" aria-label="Dark theme">🌙</button>
+    <button type="button" data-theme-pref="system" title="Match system" aria-label="Match system theme">⚙</button>
+  </div>
   <button id="refresh-btn">Refresh data</button>
   <div id="stale-banner" class="banner hidden"></div>
 </header>

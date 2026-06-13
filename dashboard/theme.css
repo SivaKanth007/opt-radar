@@ -49,11 +49,13 @@
 }
 
 /* ===================================================================
-   LIGHT THEME — auto-applied when the OS / browser prefers light.
-   Only the palette tokens change; every rule below reads them via var().
+   LIGHT THEME — applied when <html data-theme="light">.
+   JS always resolves the user's pref (light / dark / system) to an explicit
+   data-theme of 'light' or 'dark', so "System" just maps to one of these and
+   a manual choice can override the OS. Only palette tokens change here; every
+   rule below reads them via var().
    =================================================================== */
-@media (prefers-color-scheme: light) {
-  :root {
+:root[data-theme="light"] {
     --bg: #eef2f8;
     --bg-2: #e3e9f3;
     --surface: #ffffff;
@@ -92,7 +94,6 @@
     --tooltip-bg: rgba(255, 255, 255, 0.96);
     --aurora-opacity: 0.55;
     --btn-text: #ffffff;
-  }
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -475,6 +476,34 @@ button:disabled {
   cursor: not-allowed;
   box-shadow: none;
   transform: none;
+}
+
+/* ---------- Theme toggle (Light / Dark / System) ---------- */
+.theme-toggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+}
+.theme-toggle button {
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  box-shadow: none;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.12s ease;
+}
+.theme-toggle button:hover { color: var(--text); transform: none; background: var(--glass); }
+.theme-toggle button[aria-pressed="true"] {
+  background: var(--grad);
+  color: var(--btn-text);
+  box-shadow: 0 2px 10px rgba(34, 211, 238, 0.3);
 }
 
 /* Header refresh button: ghost style so it doesn't fight the title. */

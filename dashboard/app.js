@@ -164,14 +164,50 @@ if (refreshBtn) {
 // Keep long-lived tabs fresh.
 setInterval(load, 30 * 60 * 1000);
 
-// Follow the OS light/dark setting live. CSS variables flip automatically via
-// the prefers-color-scheme media query, but <canvas> charts and SVG rings read
-// colors at build time — so re-render them when the scheme changes.
-try {
-  const mq = window.matchMedia('(prefers-color-scheme: dark)');
-  const onSchemeChange = () => { if (ctx) load(); };
-  if (mq.addEventListener) mq.addEventListener('change', onSchemeChange);
-  else if (mq.addListener) mq.addListener(onSchemeChange); // older Safari
-} catch { /* matchMedia unavailable — static theme is fine */ }
+// ---- Theme: Light / Dark / System toggle ---------------------------------
+// Pref ∈ {light, dark, system} in localStorage; resolved to an explicit
+// data-theme on <html>. CSS variables flip via that attribute; <canvas> charts
+// and SVG rings read colors at build time, so we re-render after a change.
+const THEME_KEY = 'opt-radar-theme';
+const themeMq = (() => { try { return window.matchMedia('(prefers-color-scheme: dark)'); } catch { return null; } })();
+
+function getThemePref() {
+  try { return localStorage.getItem(THEME_KEY) || 'system'; } catch { return 'system'; }
+}
+function resolveTheme(pref) {
+  if (pref === 'light' || pref === 'dark') return pref;
+  return themeMq && themeMq.matches ? 'dark' : 'light'; // system
+}
+function paintThemeToggle(pref) {
+  for (const btn of $$('#theme-toggle button')) {
+    btn.setAttribute('aria-pressed', String(btn.dataset.themePref === pref));
+  }
+}
+function applyTheme(pref, { rerender = true } = {}) {
+  const eff = resolveTheme(pref);
+  if (document.documentElement.dataset.theme !== eff) {
+    document.documentElement.dataset.theme = eff;
+    if (rerender && ctx) load(); // rebuild canvas charts + SVG rings in the new palette
+  }
+  paintThemeToggle(pref);
+}
+
+// Wire toggle buttons.
+for (const btn of $$('#theme-toggle button')) {
+  btn.addEventListener('click', () => {
+    const pref = btn.dataset.themePref || 'system';
+    try { localStorage.setItem(THEME_KEY, pref); } catch { /* storage off */ }
+    applyTheme(pref);
+  });
+}
+// Reflect the stored pref in the toggle on load (data-theme was set pre-paint by the head script).
+paintThemeToggle(getThemePref());
+
+// Follow the OS setting live ONLY while in System mode.
+if (themeMq) {
+  const onSchemeChange = () => { if (getThemePref() === 'system') applyTheme('system'); };
+  if (themeMq.addEventListener) themeMq.addEventListener('change', onSchemeChange);
+  else if (themeMq.addListener) themeMq.addListener(onSchemeChange); // older Safari
+}
 
 load();
