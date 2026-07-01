@@ -202,10 +202,14 @@ function compute(ctx, fromSubmit) {
   const pp = v.pp || '';
   const ppStartChecked = !!form.elements.ppstart?.checked;
 
-  // premium = checkbox OR a pp date provided. ppMode = premium. ppStart = pp || applied.
+  // premium = checkbox OR a pp date provided. Premium CLOCK START (the
+  // 30-business-day promise runs from here, same rule as lib/merge.mjs ppStart):
+  // max(upgrade date, biometrics) — biometrics resets the clock for
+  // premium-from-start filers; fallback applied when neither is known.
   const premium = ppStartChecked || !!pp;
   const ppMode = premium;
-  const ppStart = pp || applied;
+  const clockCands = [pp, biometrics].filter(Boolean);
+  const ppStart = clockCands.length ? clockCands.sort().at(-1) : applied;
   const start = ppMode ? ppStart : applied;
 
   const today = data?.today || localToday();
@@ -283,6 +287,23 @@ function compute(ctx, fromSubmit) {
       el('span', 'muted', '  (skips weekends + US federal holidays)'),
     );
     out.append(p);
+
+    // Where they are on the clock + how the community's premium clocks resolved.
+    const bdb = ctx.dates.businessDaysBetween;
+    const dist = ctx.wave?.ppClockDist ? ctx.wave.ppClockDist(cases) : null;
+    const bdElapsed = bdb ? bdb(ppStart, today) : null;
+    if (bdElapsed != null) {
+      const clockLine = el('p', 'muted');
+      let msg = `You are on business day ${bdElapsed} of 30 (clock started ${ppStart}).`;
+      if (dist) {
+        msg += ` Across ${dist.n} premium cases, median resolution was BD ${fmt(dist.p50)} and ${dist.within30}% resolved by BD 30.`;
+        if (bdElapsed > 30) {
+          msg += ` Past BD 30 the premium fee is refunded but your case keeps priority — ${dist.over30} cases in the data ran over and still resolved.`;
+        }
+      }
+      clockLine.textContent = msg;
+      out.append(clockLine);
+    }
   }
 
   // ---- Personal percentile ruler ----

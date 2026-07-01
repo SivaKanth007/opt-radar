@@ -202,7 +202,10 @@ function projectCase(ctx, nc) {
 
   const today = ctx.today || data.today;
   const ppMode = nc.premium;
-  const ppStart = nc.pp || nc.applied;
+  // Premium clock start = max(upgrade, biometrics), applied as last resort —
+  // same rule as lib/merge.mjs ppStart and the calculator.
+  const clockCands = [nc.pp, nc.biometrics].filter(Boolean);
+  const ppStart = clockCands.length ? clockCands.sort().at(-1) : nc.applied;
   const start = ppMode ? ppStart : nc.applied;
 
   let cohort;

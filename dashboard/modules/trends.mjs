@@ -379,8 +379,9 @@ function renderPremium(ctx, ppByWeek, regByWeek, weeks) {
       labels,
       datasets: [
         {
-          label: 'premium (median days)',
+          label: 'premium (median BUSINESS days on the 30-BD clock)',
           data: ppLine,
+          yAxisID: 'y1',
           borderColor: COLORS.premium,
           backgroundColor: COLORS.premium,
           borderWidth: 2.5,
@@ -391,8 +392,9 @@ function renderPremium(ctx, ppByWeek, regByWeek, weeks) {
           fill: false,
         },
         {
-          label: 'regular (median days)',
+          label: 'regular (median days from filing)',
           data: regLine,
+          yAxisID: 'y',
           borderColor: COLORS.regular,
           backgroundColor: COLORS.regular,
           borderWidth: 2.5,
@@ -405,9 +407,23 @@ function renderPremium(ctx, ppByWeek, regByWeek, weeks) {
       ],
     },
     options: (() => {
-      const o = baseOptions('days from filing to approval');
+      const o = baseOptions('regular: days from filing');
+      // Premium rides its own right-hand axis in BUSINESS days — its clock
+      // starts at biometrics/upgrade and is capped by the 30-BD promise, so it
+      // must not share a scale with regular's from-filing calendar days.
+      o.scales.y1 = {
+        position: 'right',
+        beginAtZero: true,
+        suggestedMax: 35,
+        title: { display: true, text: 'premium: business days on clock', color: COLORS.axis },
+        ticks: { color: COLORS.axis },
+        grid: { drawOnChartArea: false },
+      };
       o.plugins.tooltip.callbacks = {
         title: (items) => `Approved week of ${items[0].label}`,
+        label: (item) => item.datasetIndex === 0
+          ? `premium: median ${item.parsed.y} business days on the clock`
+          : `regular: median ${item.parsed.y} days from filing`,
       };
       return o;
     })(),
@@ -466,9 +482,21 @@ export function render(ctx) {
     if (!byApprovalWeek.has(week)) byApprovalWeek.set(week, []);
     byApprovalWeek.get(week).push(dur);
 
-    const bucket = c.premium ? ppByWeek : regByWeek;
-    if (!bucket.has(week)) bucket.set(week, []);
-    bucket.get(week).push(dur);
+    if (c.premium) {
+      // Premium is a 30-BUSINESS-DAY promise from the CLOCK START (biometrics
+      // or upgrade date — pp_start), not from filing. Measured from filing the
+      // same cases read "~70 days" and look broken; on the clock they cluster
+      // at ≤30 BD. Chart premium in business days on its own axis.
+      const bdb = ctx.dates.businessDaysBetween;
+      const bd = bdb && c.pp_start ? bdb(c.pp_start, c.date_approved) : null;
+      if (bd != null && bd < MAX_DURATION) {
+        if (!ppByWeek.has(week)) ppByWeek.set(week, []);
+        ppByWeek.get(week).push(bd);
+      }
+    } else {
+      if (!regByWeek.has(week)) regByWeek.set(week, []);
+      regByWeek.get(week).push(dur);
+    }
   }
 
   if (!countByWeek.size) {

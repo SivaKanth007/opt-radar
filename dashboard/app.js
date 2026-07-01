@@ -16,13 +16,15 @@ import {
 } from './modules/util.mjs?v=__BUILD__';
 
 import { daysBetween, addDays, localToday, parseDate } from '../lib/dates.mjs?v=__BUILD__';
-import { addBusinessDays } from '../lib/holidays.mjs?v=__BUILD__'; // holiday-aware (weekends + US federal holidays)
+import { addBusinessDays, businessDaysBetween } from '../lib/holidays.mjs?v=__BUILD__'; // holiday-aware (weekends + US federal holidays)
 import * as stats from '../lib/stats.mjs?v=__BUILD__';
 import * as cohort from '../lib/cohort.mjs?v=__BUILD__';
+import * as waveLib from '../lib/wave.mjs?v=__BUILD__'; // wave front + premium 30-BD clock analytics
 
 import * as headline   from './modules/headline.mjs?v=__BUILD__';
 import * as live       from './modules/cheer.mjs?v=__BUILD__';
 import * as timeline   from './modules/timeline.mjs?v=__BUILD__'; // calculator + similar cases
+import * as wave       from './modules/wave.mjs?v=__BUILD__';     // approval wave + premium clock
 import * as trends     from './modules/trends.mjs?v=__BUILD__';
 import * as approvals  from './modules/approvals.mjs?v=__BUILD__';
 import * as calendars  from './modules/calendars.mjs?v=__BUILD__';
@@ -34,6 +36,7 @@ const MODULES = [
   ['headline', headline],
   ['live', live],
   ['timeline', timeline],
+  ['wave', wave],
   ['trends', trends],
   ['approvals', approvals],
   ['calendars', calendars],
@@ -54,7 +57,11 @@ let ctx = null;
 // Wire the bus ONCE (outside load) so re-renders never stack listeners.
 // timeline.compute() renders its own "similar" panel directly and emits
 // 'caseChange'; cheer reacts with the hope panel + toasts.
-bus.on('caseChange', (mc) => { if (ctx) live.onCaseChange(ctx, mc); });
+bus.on('caseChange', (mc) => {
+  if (!ctx) return;
+  live.onCaseChange(ctx, mc);
+  try { wave.onCaseChange(ctx, mc); } catch (err) { console.error('[bus] wave', err); }
+});
 
 function buildCtx(data, diff) {
   return {
@@ -63,10 +70,11 @@ function buildCtx(data, diff) {
     state, bus,
     // util helpers
     $, $$, el, fmt, pct, wrapTable, countUp, ring, toast, confetti, prefersReducedMotion,
-    // lib namespaces (addBusinessDays is the holiday-aware one)
-    dates: { daysBetween, addDays, addBusinessDays, localToday, parseDate },
+    // lib namespaces (addBusinessDays/businessDaysBetween are holiday-aware)
+    dates: { daysBetween, addDays, addBusinessDays, businessDaysBetween, localToday, parseDate },
     stats,
     cohort,
+    wave: waveLib,
   };
 }
 

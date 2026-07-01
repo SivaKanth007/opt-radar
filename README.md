@@ -10,6 +10,7 @@ Community analytics dashboard for **OPT / STEM-OPT EAD processing timelines**. M
 - Two calendars: per-application-date approval completion %, and approvals-per-day volume
 - **My Timeline calculator** — enter your applied / biometrics / premium-upgrade dates, get best/typical/worst projected approval dates from a matched cohort, plus conditional estimates ("given you've already waited N days")
 - Similar-cases table with links to the original Reddit reports
+- **Approval wave** — where the regular queue front is right now ("filers who applied ~Mar 19 are getting approved this week"), plus the premium **30-business-day clock**: histogram of business days from clock start (biometrics for premium-from-start, upgrade date for upgrades) to approval
 - Weekly trends, stage funnel, RFE impact, service-center comparison, approvals by weekday
 - Data-quality panel: censoring rates, anomaly flags, source health
 

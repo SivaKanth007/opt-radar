@@ -32,11 +32,23 @@ test('normalizeOptPulse maps fields; pp_date != applied -> upgrade', () => {
   assert.equal(c.nationality, 'India');
 });
 
-test('normalizeOptPulse: pp_date == applied -> premium from start, no upgrade', () => {
+test('normalizeOptPulse: pp_date == applied -> premium from start, clock starts at biometrics', () => {
   const c = normalizeOptPulse({ ...PULSE, pp_date: '2026-01-10' });
   assert.equal(c.pp_upgrade_date, null);
   assert.equal(c.premium, true);
-  assert.equal(c.pp_start, '2026-01-10');
+  assert.equal(c.pp_start, '2026-01-20'); // biometrics date — the 30-BD clock starts there
+});
+
+test('ppStart clock rule: max(upgrade, biometrics); applied only as last resort', () => {
+  // upgrade after biometrics -> upgrade wins
+  const up = normalizeOptPulse(PULSE); // bio 01-20, upgrade 02-01
+  assert.equal(up.pp_start, '2026-02-01');
+  // upgrade BEFORE biometrics -> biometrics resets the clock
+  const early = normalizeOptPulse({ ...PULSE, pp_date: '2026-01-15' }); // bio 01-20
+  assert.equal(early.pp_start, '2026-01-20');
+  // premium from start, no biometrics reported yet -> fallback to applied
+  const noBio = normalizeOptPulse({ ...PULSE, pp_date: '2026-01-10', biometrics_completed: null });
+  assert.equal(noBio.pp_start, '2026-01-10');
 });
 
 test('normalizeOptPulse: no username -> source-id key', () => {
@@ -50,7 +62,7 @@ test('normalizeOptTracker maps fields', () => {
   assert.equal(c.opt_type, 'initial');
   assert.equal(c.card_received, '2026-03-10');
   assert.equal(c.pp_upgrade_date, null); // pp_date == init_date
-  assert.equal(c.pp_start, '2026-01-10');
+  assert.equal(c.pp_start, '2026-01-20'); // premium-from-start clock = biometrics
 });
 
 test('normalizeOptTracker stem type', () => {
