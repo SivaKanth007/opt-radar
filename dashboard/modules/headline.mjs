@@ -200,41 +200,54 @@ export function render(ctx) {
     }
 
     // Ticks: best / typical / worst (naive percentiles), each with day + projected calendar date.
+    // On narrow viewports (isCompactViewport) labels drop the projected date
+    // and alternate rows — three full-length labels ("best (p10): 33d ≈
+    // 2026-08-03") each roughly half the track width would otherwise overlap
+    // into an unreadable pile on a ~320px screen.
+    const compact = ctx.isCompactViewport ? ctx.isCompactViewport() : false;
+    const anchor = ctx.edgeAnchor || (() => 'translateX(-50%)');
     const projDate = (day) => {
-      if (!refToday || day == null) return '';
+      if (!refToday || day == null || compact) return '';
       const d = dates.addDays(refToday, Math.round(day));
       return d ? `≈ ${d}` : '';
     };
-    const addTick = (day, name) => {
+    let tickIdx = 0;
+    const addTick = (day, name, shortName) => {
       if (day == null) return;
       const left = `${xPct(day)}%`;
       const tick = el('div', 'ruler-tick');
       tick.style.left = left;
       track.append(tick);
-      const lbl = el('div', 'ruler-tick-label');
+      const lbl = el('div', 'ruler-tick-label' + (compact && tickIdx % 2 ? ' row-b' : ''));
       lbl.style.left = left;
+      lbl.style.transform = anchor(xPct(day));
       const proj = projDate(day);
-      lbl.textContent = `${name}: ${fmt(day)}d${proj ? '  ' + proj : ''}`;
+      const label = compact ? shortName : name;
+      lbl.textContent = `${label}: ${fmt(day)}d${proj ? '  ' + proj : ''}`;
       track.append(lbl);
+      tickIdx++;
     };
-    addTick(p10, 'best (p10)');
-    addTick(p50, 'typical (p50)');
-    addTick(p90, 'worst (p90)');
+    addTick(p10, 'best (p10)', 'best');
+    addTick(p50, 'typical (p50)', 'typical');
+    addTick(p90, 'worst (p90)', 'worst');
 
     // Markers: naive p50 (above the bar) and survival-adjusted p50 (clearly labeled).
-    const addMarker = (day, label) => {
+    let markerIdx = 0;
+    const addMarker = (day, label, shortLabel) => {
       if (day == null) return;
       const left = `${xPct(day)}%`;
       const mk = el('div', 'ruler-marker');
       mk.style.left = left;
       track.append(mk);
-      const ml = el('div', 'ruler-marker-label');
+      const ml = el('div', 'ruler-marker-label' + (compact && markerIdx % 2 ? ' row-b' : ''));
       ml.style.left = left;
-      ml.textContent = label;
+      ml.style.transform = anchor(xPct(day));
+      ml.textContent = compact ? shortLabel : label;
       track.append(ml);
+      markerIdx++;
     };
-    addMarker(p50, `naive p50 · ${fmt(p50)}d`);
-    addMarker(survivalP50, `survival-adj · ${fmt(survivalP50)}d`);
+    addMarker(p50, `naive p50 · ${fmt(p50)}d`, `naive · ${fmt(p50)}d`);
+    addMarker(survivalP50, `survival-adj · ${fmt(survivalP50)}d`, `adj · ${fmt(survivalP50)}d`);
 
     ruler.append(track);
     rulerSection.append(ruler);

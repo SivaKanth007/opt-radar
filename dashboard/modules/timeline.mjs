@@ -385,7 +385,8 @@ function buildRuler(ctx, { start, elapsed, kmP10, kmP50, kmP90 }) {
   // Scale: 0 .. max(p90, elapsed, p50, 1). Guard against null percentiles.
   const candidates = [kmP10, kmP50, kmP90, elapsed].filter(n => n != null && isFinite(n));
   const maxT = Math.max(1, ...candidates);
-  const posPct = (t) => `${Math.max(0, Math.min(100, (t / maxT) * 100))}%`;
+  const posPctNum = (t) => Math.max(0, Math.min(100, (t / maxT) * 100));
+  const posPct = (t) => `${posPctNum(t)}%`;
 
   const track = el('div', 'ruler-track');
 
@@ -394,28 +395,42 @@ function buildRuler(ctx, { start, elapsed, kmP10, kmP50, kmP90 }) {
   fill.style.width = posPct(Math.min(elapsed, maxT));
   track.append(fill);
 
+  // On narrow viewports, drop the projected date (keeps just "Best · p10")
+  // and stagger ticks into two rows — three full labels ("Best ·
+  // 2026-06-25") each near half the track width would otherwise pile up
+  // unreadably on a ~320px screen. See util.mjs edgeAnchor/isCompactViewport.
+  const compact = ctx.isCompactViewport ? ctx.isCompactViewport() : false;
+  const anchor = ctx.edgeAnchor || (() => 'translateX(-50%)');
+
   // Percentile ticks (best/typical/worst), only when defined.
   const ticks = [
     [kmP10, 'Best', 'p10'],
     [kmP50, 'Typical', 'p50'],
     [kmP90, 'Worst', 'p90'],
   ];
-  for (const [t, name] of ticks) {
+  let tickIdx = 0;
+  for (const [t, name, tag] of ticks) {
     if (t == null || !isFinite(t)) continue;
+    const p = posPctNum(t);
     const tick = el('div', 'ruler-tick');
-    tick.style.left = posPct(t);
+    tick.style.left = `${p}%`;
     track.append(tick);
-    const lab = el('div', 'ruler-tick-label', `${name} · ${addDays(start, t)}`);
-    lab.style.left = posPct(t);
+    const lab = el('div', 'ruler-tick-label' + (compact && tickIdx % 2 ? ' row-b' : ''),
+      compact ? `${name} · ${tag}` : `${name} · ${addDays(start, t)}`);
+    lab.style.left = `${p}%`;
+    lab.style.transform = anchor(p);
     track.append(lab);
+    tickIdx++;
   }
 
   // "You are here" glowing marker at elapsed.
+  const youPct = posPctNum(Math.min(elapsed, maxT));
   const marker = el('div', 'ruler-marker');
-  marker.style.left = posPct(Math.min(elapsed, maxT));
+  marker.style.left = `${youPct}%`;
   track.append(marker);
   const markerLabel = el('div', 'ruler-marker-label', `You · day ${elapsed}`);
-  markerLabel.style.left = posPct(Math.min(elapsed, maxT));
+  markerLabel.style.left = `${youPct}%`;
+  markerLabel.style.transform = anchor(youPct);
   track.append(markerLabel);
 
   wrap.append(track);

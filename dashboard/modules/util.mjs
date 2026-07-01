@@ -102,6 +102,31 @@ export function prefersReducedMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
+/**
+ * isCompactViewport — true on narrow (mobile) viewports. Used by ruler/label
+ * layout to shorten text and stagger rows so absolutely-positioned labels
+ * don't overlap or run off the edge of a ~320-375px track.
+ * @returns {boolean}
+ */
+export function isCompactViewport() {
+  try { return window.matchMedia('(max-width: 640px)').matches; }
+  catch { return false; }
+}
+
+/**
+ * edgeAnchor — CSS transform for a label centered at `pct` (0-100) along a
+ * track, biased toward the track's start/end near the edges so the label
+ * never overflows past 0% or 100% (a label centered exactly at pct=2 would
+ * otherwise render half off-screen to the left).
+ * @param {number} pct  position along the track, 0-100
+ * @returns {string} a CSS transform value
+ */
+export function edgeAnchor(pct) {
+  if (pct <= 12) return 'translateX(0)';
+  if (pct >= 88) return 'translateX(-100%)';
+  return 'translateX(-50%)';
+}
+
 // ---------------------------------------------------------------------------
 // countUp — animated number increment
 // ---------------------------------------------------------------------------
