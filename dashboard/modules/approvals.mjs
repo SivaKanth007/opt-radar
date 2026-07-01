@@ -21,6 +21,9 @@ let _filtered = [];
 let _section = null;
 // Hold ctx-level helpers (set once in render, reused in callbacks).
 let _ctx = null;
+// Tracks whether the currently-rendered page has at least one link_partial row,
+// so the shared footnote can be shown/hidden accordingly.
+let _pageHasPartialLink = false;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -76,6 +79,7 @@ function buildTableBody(ctx, filtered, page) {
   const slice = filtered.slice(start, start + PAGE_SIZE);
 
   const tbody = el('tbody');
+  _pageHasPartialLink = slice.some((c) => c.link_partial === true);
 
   if (slice.length === 0) {
     const tr = document.createElement('tr');
@@ -141,7 +145,12 @@ function buildTableBody(ctx, filtered, page) {
       a.href = c.reddit_url;
       a.target = '_blank';
       a.rel = 'noopener noreferrer';
-      a.textContent = 'reddit';
+      if (c.link_partial === true) {
+        a.textContent = 'reddit*';
+        a.title = 'The linked comment may show an earlier update — some fields were merged from opt-tracker submissions.';
+      } else {
+        a.textContent = 'reddit';
+      }
       td8.appendChild(a);
     } else {
       td8.textContent = '—';
@@ -205,6 +214,28 @@ function buildPagination(ctx, totalCount, page) {
 }
 
 // ---------------------------------------------------------------------------
+// Shared footnote — only shown when the current page has a link_partial row.
+// ---------------------------------------------------------------------------
+
+function buildFootnote(ctx) {
+  const { el } = ctx;
+  const p = el('p', 'muted', '* linked comment may show an earlier update');
+  p.className = 'muted appr-footnote';
+  return p;
+}
+
+function refreshFootnote() {
+  if (!_section || !_ctx) return;
+  const old = _section.querySelector('.appr-footnote');
+  if (old) old.remove();
+  if (_pageHasPartialLink) {
+    const footnote = buildFootnote(_ctx);
+    // Place right after the pagination controls (end of section).
+    _section.append(footnote);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Partial update: swap only tbody + pagination, keep controls intact
 // ---------------------------------------------------------------------------
 
@@ -223,6 +254,8 @@ function refreshTable() {
   if (oldPagination) {
     oldPagination.replaceWith(newPagination);
   }
+
+  refreshFootnote();
 }
 
 function goToPage(n) {
@@ -360,4 +393,7 @@ export function render(ctx) {
   const pagination = buildPagination(ctx, _filtered.length, _currentPage);
   pagination.className = 'appr-pagination';
   _section.append(pagination);
+
+  // ---- Footnote (only when this page has a partial-link row) ----
+  refreshFootnote();
 }

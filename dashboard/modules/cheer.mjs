@@ -100,6 +100,8 @@ function resolveFreshApprovals(ctx) {
       date_approved: a.date_approved ?? null,
       days: a.days ?? null,
       reddit_url: a.reddit_url ?? null,
+      // diff.newly_approved entries don't carry link_partial — only mark when present and true.
+      link_partial: a.link_partial === true,
     }));
     return { list, sinceLastUpdate: true, latestDate: null };
   }
@@ -122,6 +124,7 @@ function resolveFreshApprovals(ctx) {
           ? daysBetween(c.date_applied, c.date_approved)
           : null,
       reddit_url: c.reddit_url ?? null,
+      link_partial: c.link_partial === true,
     }));
 
   return { list, sinceLastUpdate: false, latestDate };
@@ -314,10 +317,13 @@ export function render(ctx) {
       const tdDays = el('td', null, days);
       const tdLink = el('td');
       if (a.reddit_url) {
-        const link = el('a', null, 'reddit');
+        const link = el('a', null, a.link_partial === true ? 'reddit*' : 'reddit');
         link.href = a.reddit_url;
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
+        if (a.link_partial === true) {
+          link.title = 'The linked comment may show an earlier update — some fields were merged from opt-tracker submissions.';
+        }
         tdLink.append(link);
       } else {
         tdLink.textContent = '—';

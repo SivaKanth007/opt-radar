@@ -120,6 +120,8 @@ function _renderQuality(data, $, el, wrapTable) {
   const warnings = Array.isArray(data.warnings) && data.warnings.length
     ? data.warnings.join('; ')
     : 'none';
+  const linkPartialCount = cases.filter(c => c.link_partial === true).length;
+  const urlCollisions = s.url_collisions ?? 0;
 
   // Build metrics table
   const metrics = [
@@ -143,6 +145,11 @@ function _renderQuality(data, $, el, wrapTable) {
       `nationality ${nullPct('nationality')} · ` +
       `card received ${nullPct('card_received')}`,
     ],
+    [
+      'Link integrity',
+      `${linkPartialCount} link${linkPartialCount !== 1 ? 's' : ''} flagged partial (comment may lag merged data) · ` +
+      `${urlCollisions} upstream URL collision${urlCollisions !== 1 ? 's' : ''} nulled`,
+    ],
     ['Schema warnings', warnings],
   ];
 
@@ -162,7 +169,8 @@ function _renderQuality(data, $, el, wrapTable) {
   const explainer = el('p', 'muted',
     'Naive stats use approved cases only (optimistic — biased fast). ' +
     'Survival-adjusted stats count pending cases as "at least N days" via Kaplan-Meier; ' +
-    'stale pending cases are censored at the cutoff.'
+    'stale pending cases are censored at the cutoff. ' +
+    'Links marked * point at the person’s Reddit comment, which may not yet mention fields merged from their opt-tracker submissions.'
   );
 
   out.replaceChildren(wrapTable(tbl), explainer);

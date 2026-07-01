@@ -52,10 +52,30 @@ export function render(ctx) {
   if (!root) return; // section missing — nothing to do
 
   root.replaceChildren();
-  root.append(el('h2', null, 'OPT approval pulse'));
+  const eyebrow = el('span', 'eyebrow', 'The big picture');
+  root.append(eyebrow, el('h2', null, 'OPT approval pulse'));
 
   const cases = Array.isArray(data?.cases) ? data.cases : [];
   const refToday = today || data?.today || (dates.localToday && dates.localToday()) || null;
+
+  // ---- Hero stat fill (launch-portal hero in index.html; ids optional) ----
+  // Defensive: skip silently when the hero isn't present (e.g. older html).
+  {
+    const heroCases = document.getElementById('hero-stat-cases');
+    const heroApproved = document.getElementById('hero-stat-approved');
+    const heroWeek = document.getElementById('hero-stat-week');
+    const goodAll = cases.filter(isGood);
+    if (heroCases) countUp(heroCases, goodAll.length);
+    if (heroApproved) countUp(heroApproved, goodAll.filter(c => c.date_approved).length);
+    if (heroWeek && refToday) {
+      // Approvals dated within the last 7 days INCLUSIVE of today: [today-6, today].
+      const weekAgo = dates.addDays ? dates.addDays(refToday, -6) : null;
+      const n = weekAgo
+        ? goodAll.filter(c => c.date_approved && c.date_approved >= weekAgo && c.date_approved <= refToday).length
+        : 0;
+      countUp(heroWeek, n);
+    }
+  }
 
   // ---- Derived sets ------------------------------------------------------
   // Approved + "good" + non-outlier → the percentile cohort.
@@ -71,10 +91,32 @@ export function render(ctx) {
   const approvedAll = cases.filter(c => isGood(c) && c.date_approved);
   const pending = cases.filter(c => isGood(c) && c.date_applied && !c.date_approved);
 
-  // Earliest approval on record (among good approved with a date).
+  // Earliest approval THIS CYCLE. Same consistency rule as the calendars: the
+  // cycle starts at the first month holding >= max(10, 10% of the busiest
+  // month's) applications. Keeps a lone prior-year straggler (real data, kept
+  // in the stats) from squatting on this display card.
+  const byMonth = new Map();
+  for (const c of cases) {
+    if (isGood(c) && c.date_applied) {
+      const m = c.date_applied.slice(0, 7);
+      byMonth.set(m, (byMonth.get(m) || 0) + 1);
+    }
+  }
+  const peak = Math.max(1, ...byMonth.values());
+  const cycleStart = [...byMonth.keys()].sort()
+    .find(m => byMonth.get(m) >= Math.max(10, peak * 0.1)) || '';
+  // Two-month grace before the ramp: early filers (Nov/Dec for a Jan ramp) are
+  // this cycle too; a prior-YEAR straggler stays excluded.
+  const graceStart = (() => {
+    if (!cycleStart) return '';
+    const [y, m] = cycleStart.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1 - 2, 1)).toISOString().slice(0, 7);
+  })();
   let earliest = null;
   for (const c of approvedAll) {
-    if (c.date_approved && (earliest === null || c.date_approved < earliest)) earliest = c.date_approved;
+    if (!c.date_approved) continue;
+    if (c.date_applied && c.date_applied.slice(0, 7) < graceStart) continue; // prior-cycle straggler
+    if (earliest === null || c.date_approved < earliest) earliest = c.date_approved;
   }
 
   // Median pending wait so far: days from applied → today for still-pending good cases.
@@ -97,14 +139,15 @@ export function render(ctx) {
   const cTotal   = statCard('card', 'total cases');
   const cApproved = statCard('card good', 'approved');
   const cPending = statCard('card', 'pending');
-  const cEarliest = statCard('card', 'earliest approval on record');
+  const cEarliest = statCard('card', 'earliest approval (this cycle)');
   const cWait    = statCard('card warn', 'median pending wait so far (days)');
 
   grid.append(cTotal.card, cApproved.card, cPending.card, cEarliest.card, cWait.card);
   root.append(grid);
 
   // Numeric count-ups (earliest is a date string, set directly).
-  countUp(cTotal.value, cases.length);
+  // Count only good cases — matches the hero and every other panel's filter.
+  countUp(cTotal.value, cases.filter(isGood).length);
   countUp(cApproved.value, approvedAll.length);
   countUp(cPending.value, pending.length);
   cEarliest.value.textContent = earliest || '—';

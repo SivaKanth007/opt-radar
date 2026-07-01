@@ -124,3 +124,74 @@ test('buildDiff reports new and newly-approved', () => {
   const empty = buildDiff(null, next);
   assert.equal(empty.first_snapshot, true);
 });
+
+// ---------------------------------------------------------------------------
+// Link-integrity fixes (2026-06: forensic audit found 11 rows contradicting
+// their linked comment, 95 users with multiple opt-tracker submissions, and
+// one upstream URL collision).
+// ---------------------------------------------------------------------------
+
+test('dedupe: multiple opttracker submissions for one user keep the most-progressed row whole', () => {
+  const rows = [
+    normalizeOptTracker({ ...TRACKER, id: 't1', init_date: '2026-03-20', biometrics_date: '2026-03-20', approve_date: null, card_produce_date: null, delivered_date: null, pp_date: null }),
+    normalizeOptTracker({ ...TRACKER, id: 't2', init_date: '2026-05-03', biometrics_date: null, approve_date: '2026-06-12', card_produce_date: null, delivered_date: null, pp_date: null }),
+  ];
+  const { cases } = dedupe(rows);
+  assert.equal(cases.length, 1);
+  assert.equal(cases[0].date_approved, '2026-06-12'); // richer (approved) row won outright
+  assert.equal(cases[0].date_applied, '2026-05-03');  // NOT '2026-03-20' — no cross-row franken-merge
+  assert.equal(cases[0].biometrics_date, null);       // and no field bleed from the discarded row
+});
+
+test('dedupe: optpulse comment values survive later opttracker rows (no preference flip after both)', () => {
+  const a = normalizeOptPulse(PULSE);           // comment asserts applied 2026-01-10, bio 2026-01-20
+  const b = normalizeOptTracker(TRACKER);       // same user -> merges to 'both'
+  const c = normalizeOptTracker({ ...TRACKER, id: 'x2', init_date: '2026-02-01', biometrics_date: '2026-02-05', approve_date: null, card_produce_date: null, delivered_date: null });
+  const { cases } = dedupe([a, b, c]);
+  assert.equal(cases.length, 1);
+  assert.equal(cases[0].date_applied, '2026-01-10');    // linked comment's value, not the later submission's
+  assert.equal(cases[0].biometrics_date, '2026-01-20');
+});
+
+test('dedupe is order-robust: opttracker rows first, comment still wins conflicts', () => {
+  const ot = normalizeOptTracker({ ...TRACKER, init_date: '2026-02-01' });
+  const op = normalizeOptPulse(PULSE);
+  const { cases } = dedupe([ot, op]);
+  assert.equal(cases.length, 1);
+  assert.equal(cases[0].date_applied, '2026-01-10'); // optpulse (comment) outranks opttracker regardless of order
+  assert.equal(cases[0].reddit_url, 'https://reddit.com/x/c1');
+});
+
+test('buildLatest nulls reddit_url when two optpulse records share one comment link', () => {
+  const r1 = { ...PULSE, id: 'UserX', comment_id: 'dup1', reddit_url: 'https://r/x/comment/dup/' };
+  const r2 = { ...PULSE, id: 'UserY', comment_id: 'dup1', reddit_url: 'https://r/x/comment/dup/', date_applied: '2026-02-01' };
+  const latest = buildLatest({ optpulseRaw: [r1, r2], opttrackerRaw: [], fetchedAt: 'T', today: '2026-06-14', sources: {} });
+  assert.equal(latest.cases.length, 2);
+  assert.ok(latest.cases.every(c => c.reddit_url === null)); // ambiguous link is worse than no link
+  assert.equal(latest.sources.url_collisions, 1);
+});
+
+test('merge marks link_partial when shown fields exceed what the linked comment asserted', () => {
+  const a = normalizeOptPulse({ ...PULSE, date_approved: null });            // comment: not yet approved
+  const b = normalizeOptTracker({ ...TRACKER, approve_date: '2026-03-01', card_produce_date: null, delivered_date: null });
+  const { cases } = dedupe([a, b]);
+  assert.equal(cases[0].date_approved, '2026-03-01'); // filled from opt-tracker
+  assert.equal(cases[0].link_partial, true);          // and flagged: the comment won't show this
+
+  // Not set when the comment already asserted every timeline field shown.
+  const c = normalizeOptPulse(PULSE);
+  const d = normalizeOptTracker({ ...TRACKER, card_produce_date: null, delivered_date: null });
+  const merged2 = dedupe([c, d]).cases[0];
+  assert.ok(!merged2.link_partial);
+});
+
+test('normalize: pp_date alone is NOT premium evidence (opt-pulse sets it on 86% of rows)', () => {
+  // premium_processing false + pp_date present -> regular case, no premium clock
+  const c = normalizeOptPulse({ ...PULSE, premium_processing: false, pp_date: '2026-02-01' });
+  assert.equal(c.premium, false);
+  assert.equal(c.pp_upgrade_date, null);
+  assert.equal(c.pp_start, null);
+  const t = normalizeOptTracker({ ...TRACKER, premium_processing: false, pp_date: '2026-02-01' });
+  assert.equal(t.premium, false);
+  assert.equal(t.pp_start, null);
+});

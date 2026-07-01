@@ -18,31 +18,79 @@
   }
 })();
 </script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@600;700&display=swap">
 <link rel="stylesheet" href="theme.css?v=__BUILD__">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 </head>
 <body>
 <header>
-  <h1>OPT Radar</h1>
-  <div id="meta"></div>
-  <div id="theme-toggle" class="theme-toggle" role="group" aria-label="Theme">
-    <button type="button" data-theme-pref="light" title="Light" aria-label="Light theme">☀</button>
-    <button type="button" data-theme-pref="dark" title="Dark" aria-label="Dark theme">🌙</button>
-    <button type="button" data-theme-pref="system" title="Match system" aria-label="Match system theme">⚙</button>
-  </div>
-  <button id="refresh-btn">Refresh data</button>
+  <a class="wordmark" href="#hero" aria-label="OPT Radar — back to top">
+    <svg class="radar-glyph" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false">
+      <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-opacity="0.30" stroke-width="1.4"/>
+      <circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-opacity="0.50" stroke-width="1.4"/>
+      <circle cx="12" cy="12" r="1.9" fill="currentColor"/>
+      <path class="radar-sweep" d="M12 12 L12 1.6 A10.4 10.4 0 0 1 21 5.9 Z" fill="currentColor" fill-opacity="0.30"/>
+      <circle cx="16.4" cy="7.2" r="1.5" fill="currentColor"/>
+    </svg>
+    <span class="wordmark-text">OPT Radar</span>
+  </a>
+  <nav class="nav-actions" aria-label="Site controls">
+    <div id="theme-toggle" class="theme-toggle" role="group" aria-label="Theme">
+      <button type="button" data-theme-pref="light" title="Light" aria-label="Light theme">☀</button>
+      <button type="button" data-theme-pref="dark" title="Dark" aria-label="Dark theme">🌙</button>
+      <button type="button" data-theme-pref="system" title="Match system" aria-label="Match system theme">⚙</button>
+    </div>
+    <button id="refresh-btn">Refresh data</button>
+  </nav>
   <div id="stale-banner" class="banner hidden"></div>
 </header>
 
 <main>
-  <!-- Hero: pulse stats + global percentile ruler (module builds its own h2) -->
+  <!-- Launch hero: static HTML, no module. headline.mjs fills the hero-stat-* ids
+       defensively (skips them if absent). app.js writes the live stamp into #meta. -->
+  <section id="hero" aria-label="OPT Radar overview">
+    <div class="hero-inner">
+      <span class="hero-badge"><span class="pulse-dot"></span> LIVE · community approval intelligence</span>
+      <h1 class="hero-display">Know where your <span class="grad-text">OPT case</span> stands.</h1>
+      <p class="hero-sub">Real approval timelines from 1,700+ community-reported cases — refreshed hourly, survival-adjusted for the silent majority.</p>
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <span class="hero-stat-value" id="hero-stat-cases">—</span>
+          <span class="hero-stat-label">cases tracked</span>
+        </div>
+        <div class="hero-stat">
+          <span class="hero-stat-value" id="hero-stat-approved">—</span>
+          <span class="hero-stat-label">approved</span>
+        </div>
+        <div class="hero-stat">
+          <span class="hero-stat-value" id="hero-stat-week">—</span>
+          <span class="hero-stat-label">approved · last 7 days</span>
+        </div>
+      </div>
+      <div class="hero-ctas">
+        <a class="btn-primary" href="#calculator">Project my timeline</a>
+        <a class="btn-ghost" href="#live">See today's approvals</a>
+      </div>
+      <div id="meta"></div>
+    </div>
+  </section>
+
+  <!-- Pulse stats + global percentile ruler (module builds its own eyebrow + h2) -->
   <section id="headline"></section>
 
   <!-- Live: "N approved since last update" + throughput + personal hope panel -->
   <section id="live"></section>
 
-  <!-- Personal projection -->
+  <!-- Personal projection.
+       Eyebrow note: sections whose modules only write into inner divs get a
+       static <span class="eyebrow">; sections whose modules wipe children but
+       KEEP the <h2> node (trends, funnel, rfe, centers, weekday) carry the
+       eyebrow as a data-eyebrow attribute rendered via CSS ::before, so it
+       survives re-renders. -->
   <section id="calculator">
+    <span class="eyebrow">Personal projection</span>
     <h2>My timeline</h2>
     <form id="calc-form"></form>
     <div id="calc-out"></div>
@@ -50,18 +98,20 @@
 
   <!-- Cases near yours -->
   <section id="similar">
+    <span class="eyebrow">Peer comparison</span>
     <h2>Similar cases</h2>
     <div id="similar-out"></div>
   </section>
 
-  <!-- Current trends (module builds canvases under its h2) -->
-  <section id="trends"><h2>Trends</h2></section>
+  <!-- Current trends (module rebuilds section but preserves this h2 node) -->
+  <section id="trends"><h2 data-eyebrow="Momentum">Trends</h2></section>
 
   <!-- Full paginated approvals list (module builds its own h2) -->
   <section id="approvals"></section>
 
   <!-- Heat-map calendars -->
   <section id="calendars">
+    <span class="eyebrow">Day by day</span>
     <h2>Calendars</h2>
     <h3>Cohort completion — % of each day's applicants approved so far</h3>
     <div id="cal-cohort" class="cal"></div>
@@ -69,16 +119,39 @@
     <div id="cal-volume" class="cal"></div>
   </section>
 
-  <!-- Stage / RFE / center / weekday breakdowns -->
-  <section id="funnel"><h2>Stage funnel</h2></section>
-  <section id="rfe"><h2>RFE / NOID</h2></section>
-  <section id="centers"><h2>Service centers</h2></section>
-  <section id="weekday"><h2>Approvals by weekday</h2></section>
+  <!-- Stage / RFE / center / weekday breakdowns (modules preserve these h2 nodes) -->
+  <section id="funnel"><h2 data-eyebrow="Pipeline stages">Stage funnel</h2></section>
+  <section id="rfe"><h2 data-eyebrow="Risk watch">RFE / NOID</h2></section>
+  <section id="centers"><h2 data-eyebrow="Processing centers">Service centers</h2></section>
+  <section id="weekday"><h2 data-eyebrow="Timing patterns">Approvals by weekday</h2></section>
 
   <!-- Meta -->
-  <section id="diff"><h2>New since previous snapshot</h2><div id="diff-out"></div></section>
-  <section id="quality"><h2>Data quality</h2><div id="quality-out"></div></section>
+  <section id="diff">
+    <span class="eyebrow">Fresh intel</span>
+    <h2>New since previous snapshot</h2>
+    <div id="diff-out"></div>
+  </section>
+  <section id="quality">
+    <span class="eyebrow">Transparency</span>
+    <h2>Data quality</h2>
+    <div id="quality-out"></div>
+  </section>
 </main>
+
+<footer>
+  <div class="footer-inner">
+    <span class="footer-mark">
+      <svg class="radar-glyph" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+        <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-opacity="0.30" stroke-width="1.4"/>
+        <circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-opacity="0.50" stroke-width="1.4"/>
+        <circle cx="12" cy="12" r="1.9" fill="currentColor"/>
+      </svg>
+      OPT Radar
+    </span>
+    <p>OPT Radar — community-sourced data from opt-pulse &amp; opt-tracker (r/f1visa). Self-reported timelines; not legal advice. Built for the ones still waiting. 💙</p>
+    <a class="footer-link" href="https://github.com/SivaKanth007/opt-radar" target="_blank" rel="noopener">GitHub ↗</a>
+  </div>
+</footer>
 
 <script type="module" src="app.js?v=__BUILD__"></script>
 </body>

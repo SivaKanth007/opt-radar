@@ -5,6 +5,13 @@
  * Renders the calculator into #calculator (form #calc-form, output #calc-out)
  * and the similar-cases panel into #similar (#similar-out).
  *
+ * #calc-out order: cohort line → premium deadline (pp only) → percentile ruler
+ * ("you are here") → approval-chance curve (Chart.js, canvas #chance-curve) +
+ * headline stat → naive-vs-survival projection table → honest caveat.
+ * The similar panel shows BOTH the reported approval rate and a rate adjusted
+ * for silent drop-offs (stale_pending removed from the denominator), because
+ * many users never update after approval — true denials are rare.
+ *
  * This is the highest-value, correctness-critical module. It ports and improves
  * the logic that previously lived inline in dashboard/app.js. It is fully
  * defensive: tolerates null/missing fields and empty result sets, never throws,
@@ -29,6 +36,9 @@ const PAGE_SIZE = 15;    // similar-cases table pagination
 
 // Module-local pagination state for the similar table. Reset whenever the case changes.
 let _simState = { rows: [], page: 0, ctx: null };
+
+// Module-level Chart.js handle for the approval-chance curve (destroy-before-recreate).
+let _chanceChart = null;
 
 // ---------------------------------------------------------------------------
 // Helpers (defensive)
@@ -70,6 +80,38 @@ function statusOf(c) {
   if (c.date_approved) return 'approved';
   if ((c.flags || []).includes('stale_pending')) return 'stale';
   return 'pending';
+}
+
+/** Destroy any live approval-chance chart (module handle + canvas registry). */
+function destroyChanceChart() {
+  try {
+    if (_chanceChart) { _chanceChart.destroy(); _chanceChart = null; }
+    const cv = document.getElementById('chance-curve');
+    if (cv && window.Chart) window.Chart.getChart(cv)?.destroy();
+  } catch { /* never let chart teardown break a re-render */ }
+}
+
+/**
+ * Chart palette read live from CSS variables so the chart follows the active
+ * light/dark scheme (same convention as modules/trends.mjs COLORS). The
+ * literals are dark-theme fallbacks.
+ */
+function chanceColors() {
+  const v = (name, fb) => {
+    try { return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fb; }
+    catch { return fb; }
+  };
+  return {
+    axis:         v('--muted', '#8b97b0'),
+    legend:       v('--text', '#e8edf7'),
+    grid:         v('--border', 'rgba(140, 165, 220, 0.14)'),
+    accent:       v('--accent', '#22d3ee'),
+    accentFill:   'rgba(34, 211, 238, 0.14)', // low-alpha cyan reads fine on both themes
+    marker:       v('--warn', '#fbbf24'),
+    tooltipBg:    v('--tooltip-bg', 'rgba(7, 10, 19, 0.92)'),
+    tooltipTitle: v('--text', '#e8edf7'),
+    tooltipBody:  v('--muted', '#cbd5e1'),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -142,6 +184,10 @@ function compute(ctx, fromSubmit) {
   const form = $('#calc-form');
   const out = $('#calc-out');
   if (!form || !out) return;
+
+  // Every path below replaces #calc-out — release the old chart first so
+  // Chart.js instances never leak or stack across re-renders.
+  destroyChanceChart();
 
   persist(form);
 
@@ -241,6 +287,9 @@ function compute(ctx, fromSubmit) {
 
   // ---- Personal percentile ruler ----
   out.append(buildRuler(ctx, { start, elapsed, kmP10, kmP50, kmP90 }));
+
+  // ---- Approval-chance curve (the centerpiece) + headline stat ----
+  buildChanceChart(ctx, out, { curve, elapsed, kmP50, kmP90 });
 
   // ---- Projection table: naive (events only) vs survival-adjusted ----
   const rows = [
@@ -365,6 +414,157 @@ function buildRuler(ctx, { start, elapsed, kmP10, kmP50, kmP90 }) {
 }
 
 // ---------------------------------------------------------------------------
+// Approval-chance curve ("what are my approval chances")
+// ---------------------------------------------------------------------------
+
+/**
+ * buildChanceChart — append the cumulative approval-probability chart and its
+ * headline stat into `out`.
+ *
+ * y(t) = (1 - KM survival at t) * 100 = share of comparable cases approved by
+ * day t, with silent drop-offs treated as censored (not as denials). Rendered
+ * as a stepped line (the KM estimator IS a step function) with a dashed
+ * vertical "you are here" marker at the user's elapsed days.
+ *
+ * Defensive: empty/null curve → muted note, no chart. Chart.js missing →
+ * headline stat still renders. Reduced motion → animation disabled.
+ */
+function buildChanceChart(ctx, out, { curve, elapsed, kmP50, kmP90 }) {
+  const { el, prefersReducedMotion } = ctx;
+  const { kmSurvivalAt, kmQuantile } = ctx.stats;
+
+  out.append(el('h3', null, 'Chance of approval by day N (survival-adjusted)'));
+
+  if (!Array.isArray(curve) || curve.length === 0) {
+    out.append(el('p', 'muted',
+      'Not enough approvals in this cohort yet to chart your approval chances.'));
+    return;
+  }
+
+  // ---- Headline stat (rendered under the chart; kept even if Chart.js is out) ----
+  const chanceNow = Math.round(Math.max(0, Math.min(100, (1 - kmSurvivalAt(curve, elapsed)) * 100)));
+  const headline = el('p');
+  headline.append(el('strong', null,
+    `By today (day ${elapsed}): ${chanceNow}% of similar cases were already approved`));
+  const tail = [];
+  if (kmP50 != null && isFinite(kmP50)) tail.push(`by day ${kmP50}: 50%`);
+  if (kmP90 != null && isFinite(kmP90)) tail.push(`by day ${kmP90}: 90%`);
+  if (tail.length) headline.append(el('span', 'muted', ' · ' + tail.join(' · ')));
+
+  if (!window.Chart) {
+    out.append(el('p', 'muted', 'Chart unavailable (Chart.js did not load) — the numbers below still stand.'));
+    out.append(headline);
+    return;
+  }
+
+  // ---- Chart data: KM step points 0..xMax ----
+  const maxCurveT = curve[curve.length - 1].t;
+  const p95 = kmQuantile(curve, 0.95);
+  const horizon = Math.min(maxCurveT, p95 == null ? maxCurveT : p95); // p95ish horizon
+  // Extend the axis to the user's position when they've waited past the horizon
+  // (capped at the last observed event so we never draw past the data).
+  const xMax = Math.max(1, horizon, Math.min(Math.max(0, elapsed), maxCurveT));
+
+  const points = [{ x: 0, y: 0 }];
+  for (const pt of curve) {
+    if (pt.t > xMax) break;
+    points.push({ x: pt.t, y: Math.max(0, Math.min(100, (1 - pt.S) * 100)) });
+  }
+  const last = points[points.length - 1];
+  if (last.x < xMax) points.push({ x: xMax, y: last.y }); // flat-extend to the axis edge
+
+  // "You are here" marker (clamped into view; the label keeps the true day count).
+  const markerX = Math.max(0, Math.min(elapsed, xMax));
+
+  const box = el('div', 'chart-box');
+  const canvas = document.createElement('canvas');
+  canvas.id = 'chance-curve';
+  box.append(canvas);
+  out.append(box);
+  out.append(headline);
+
+  const C = chanceColors();
+  try {
+    _chanceChart = new window.Chart(canvas, {
+      type: 'line',
+      data: {
+        datasets: [
+          {
+            label: 'share of similar cases approved by day N',
+            data: points,
+            stepped: true,          // KM is a step function — draw it as one
+            borderColor: C.accent,
+            backgroundColor: C.accentFill,
+            borderWidth: 2.5,
+            pointRadius: 0,
+            pointHitRadius: 8,
+            fill: 'origin',
+            order: 1,
+          },
+          {
+            label: `you · day ${elapsed}`,
+            data: [{ x: markerX, y: 0 }, { x: markerX, y: 100 }],
+            borderColor: C.marker,
+            backgroundColor: C.marker,
+            borderDash: [6, 4],
+            borderWidth: 2,
+            pointRadius: 0,
+            fill: false,
+            order: 2,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: prefersReducedMotion() ? false : { duration: 700 },
+        interaction: { mode: 'nearest', axis: 'x', intersect: false },
+        plugins: {
+          legend: { labels: { color: C.legend, boxWidth: 12, usePointStyle: true } },
+          tooltip: {
+            backgroundColor: C.tooltipBg,
+            borderColor: C.grid,
+            borderWidth: 1,
+            titleColor: C.tooltipTitle,
+            bodyColor: C.tooltipBody,
+            padding: 10,
+            callbacks: {
+              title: () => '',
+              label: (item) => item.datasetIndex === 1
+                ? `you are here — day ${elapsed}`
+                : `day ${Math.round(item.parsed.x)}: ${Math.round(item.parsed.y)}% of similar cases approved by now`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            type: 'linear',
+            min: 0,
+            max: xMax,
+            title: { display: true, text: 'days since clock start', color: C.axis },
+            ticks: { color: C.axis, maxTicksLimit: 9, precision: 0 },
+            grid: { color: C.grid },
+          },
+          y: {
+            min: 0,
+            max: 100,
+            title: { display: true, text: 'approved by day N (%)', color: C.axis },
+            ticks: { color: C.axis, callback: (v) => v + '%' },
+            grid: { color: C.grid },
+          },
+        },
+      },
+    });
+  } catch (err) {
+    // A Chart.js hiccup must never take down the projection panel.
+    _chanceChart = null;
+    box.replaceChildren(el('p', 'muted', 'Chart could not be rendered — the numbers below still stand.'));
+    // eslint-disable-next-line no-console
+    console.error('[timeline] chance chart error:', err);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // onCaseChange — re-render similar cases for a (possibly external) case
 // ---------------------------------------------------------------------------
 
@@ -425,7 +625,17 @@ function renderSimilar(ctx, myCase) {
   // Approval rate + summary among the similar cohort.
   const approved = sims.filter(c => c.date_approved);
   const pending = sims.filter(c => !c.date_approved);
-  const ratePct = sims.length ? (approved.length / sims.length) * 100 : 0;
+  const ratePct = sims.length ? (approved.length / sims.length) * 100 : 0; // reported (raw)
+
+  // Adjusted rate: stale_pending cases are mostly silent approvals/abandonment
+  // (people stop updating once approved — true denials are low single digits),
+  // so they're removed from the denominator instead of counted as "not approved".
+  const stalePending = sims.filter(c => (c.flags || []).includes('stale_pending')).length;
+  const adjDenom = sims.length - stalePending;
+  const adjPct = adjDenom > 0
+    ? Math.max(0, Math.min(100, (approved.length / adjDenom) * 100))
+    : ratePct; // degenerate cohort (all stale) — fall back to the reported rate
+
   const apprDurs = approved
     .map(c => daysBetween(c.date_applied, c.date_approved))
     .filter(d => d >= 0)
@@ -434,15 +644,15 @@ function renderSimilar(ctx, myCase) {
 
   out.replaceChildren();
 
-  // ---- Ring + summary strip ----
+  // ---- Ring (adjusted rate) + summary strip ----
   const head = el('div', 'cards');
 
   const ringWrap = el('div', 'ring-wrap');
   ringWrap.append(ring({
-    percent: ratePct,
+    percent: adjPct,
     size: 132,
-    label: `${Math.round(ratePct)}%`,
-    sublabel: 'approved',
+    label: `${Math.round(adjPct)}%`,
+    sublabel: 'likely approved',
   }));
   head.append(ringWrap);
 
@@ -457,6 +667,11 @@ function renderSimilar(ctx, myCase) {
   countUp(sumVal, approved.length, { suffix: ` approved · ${pending.length} pending` });
 
   out.append(head);
+
+  // Honest dual-rate note: show BOTH figures and why they differ.
+  out.append(el('p', 'muted',
+    `Reported: ${Math.round(ratePct)}% · Adjusted for silent drop-offs (${stalePending} stale case${stalePending === 1 ? '' : 's'} excluded): ${Math.round(adjPct)}%. ` +
+    'Most people stop updating once approved — the adjusted figure is the better estimate; true denials are rare.'));
 
   // ---- Paginated table ----
   _simState = { rows: sims, page: 0, ctx, today };
@@ -506,10 +721,15 @@ function renderSimilarPage(host) {
 
     const linkTd = el('td');
     if (c.reddit_url) {
-      const a = el('a', null, 'reddit');
+      // link_partial: the linked comment doesn't assert every field shown here
+      // (some fills came from opt-tracker submissions) — mark it 'reddit*'.
+      const a = el('a', null, c.link_partial ? 'reddit*' : 'reddit');
       a.href = c.reddit_url;
       a.target = '_blank';
       a.rel = 'noopener noreferrer';
+      if (c.link_partial) {
+        a.title = 'The linked comment may show an earlier update — some fields were merged from opt-tracker submissions.';
+      }
       linkTd.append(a);
     } else {
       linkTd.textContent = '—';
