@@ -1013,8 +1013,549 @@ footer {
   to { transform: rotate(360deg); }
 }
 
+/* ===================================================================
+   CINEMATIC FX LAYER — "Mission Control"
+   Scroll progress, scroll reveals, radar scope, ticker, tilt, spotlight,
+   scrollspy dots, grain. All driven by dashboard/modules/fx.mjs; every
+   piece degrades gracefully without JS and respects reduced motion.
+   =================================================================== */
+
+/* ---- scroll progress bar ---- */
+#scroll-progress {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%;
+  height: 3px;
+  background: var(--grad);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  z-index: 100;
+  pointer-events: none;
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.5);
+}
+
+/* ---- film grain (very low, adds "shot on film" texture) ---- */
+.grain {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+  mix-blend-mode: overlay;
+}
+:root[data-theme="light"] .grain { opacity: 0.03; }
+
+/* ---- cursor spotlight (desktop only; fx.mjs removes it otherwise) ---- */
+#cursor-glow {
+  position: fixed;
+  top: 0; left: 0;
+  width: 560px;
+  height: 560px;
+  border-radius: 50%;
+  z-index: 0;
+  pointer-events: none;
+  transform: translate(-9999px, -9999px);
+  background: radial-gradient(circle at center,
+    rgba(34, 211, 238, 0.09) 0%,
+    rgba(124, 92, 255, 0.05) 38%,
+    transparent 68%);
+  will-change: transform;
+}
+:root[data-theme="light"] #cursor-glow {
+  background: radial-gradient(circle at center,
+    rgba(8, 145, 178, 0.07) 0%,
+    rgba(109, 40, 217, 0.04) 38%,
+    transparent 68%);
+}
+
+/* ---- scroll-driven reveals (fx.mjs adds .fx-reveal only to below-fold
+        sections, then .in as they enter — so no first-paint flash) ---- */
+main > section.fx-reveal {
+  animation: none;                 /* replaces the load-time fadeInUp */
+  opacity: 0;
+  transform: translateY(38px) scale(0.984);
+  transition: opacity 0.85s cubic-bezier(0.22, 1, 0.36, 1),
+              transform 0.85s cubic-bezier(0.22, 1, 0.36, 1);
+}
+main > section.fx-reveal.in {
+  opacity: 1;
+  transform: none;
+}
+/* Children stagger softly under the section reveal (pure CSS = survives
+   module re-renders). */
+main > section.fx-reveal > * {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+main > section.fx-reveal.in > * { opacity: 1; transform: none; }
+main > section.fx-reveal.in > *:nth-child(1) { transition-delay: 0.05s; }
+main > section.fx-reveal.in > *:nth-child(2) { transition-delay: 0.12s; }
+main > section.fx-reveal.in > *:nth-child(3) { transition-delay: 0.19s; }
+main > section.fx-reveal.in > *:nth-child(4) { transition-delay: 0.26s; }
+main > section.fx-reveal.in > *:nth-child(n+5) { transition-delay: 0.32s; }
+
+/* ---- kinetic headline: words rise with a clip reveal ---- */
+.hero-display .hw { display: inline-block; }
+.hero-display.hw-arm .hw {
+  opacity: 0;
+  transform: translateY(0.55em) rotate(1.5deg);
+  animation: hwRise 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.hero-display.hw-arm .hw:nth-child(1) { animation-delay: 0.05s; }
+.hero-display.hw-arm .hw:nth-child(2) { animation-delay: 0.13s; }
+.hero-display.hw-arm .hw:nth-child(3) { animation-delay: 0.21s; }
+.hero-display.hw-arm .hw:nth-child(4) { animation-delay: 0.31s; }
+.hero-display.hw-arm .hw:nth-child(5) { animation-delay: 0.43s; }
+@keyframes hwRise {
+  to { opacity: 1; transform: none; }
+}
+
+/* ---- hero v2: split console layout on desktop ---- */
+#hero {
+  min-height: min(92vh, 940px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.hero-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  align-items: center;
+  gap: clamp(24px, 4vw, 64px);
+  text-align: left;
+  width: 100%;
+}
+.hero-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.hero-display { margin-left: 0; max-width: 14ch; font-size: clamp(2.3rem, 4.6vw, 4.4rem); }
+.hero-sub { margin-left: 0; }
+.hero-stats { justify-content: flex-start; }
+.hero-ctas { justify-content: flex-start; }
+#meta { justify-content: flex-start; }
+
+/* ---- radar scope ---- */
+.hero-scope-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  justify-self: center;
+}
+.scope {
+  --scope-size: clamp(260px, 30vw, 460px);
+  position: relative;
+  width: var(--scope-size);
+  height: var(--scope-size);
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background:
+    radial-gradient(circle at 50% 50%, rgba(34, 211, 238, 0.07), transparent 70%),
+    var(--surface-2);
+  box-shadow: var(--shadow), inset 0 0 60px rgba(34, 211, 238, 0.06);
+  overflow: hidden;
+}
+:root[data-theme="light"] .scope {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(8, 145, 178, 0.06), transparent 70%),
+    var(--surface);
+}
+.scope-rings {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    repeating-radial-gradient(circle at 50% 50%,
+      transparent 0,
+      transparent calc(var(--scope-size) / 8 - 1px),
+      var(--border) calc(var(--scope-size) / 8 - 1px),
+      var(--border) calc(var(--scope-size) / 8));
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 0 50%, transparent 50%);
+  mask-image: radial-gradient(circle at 50% 50%, #000 0 50%, transparent 50%);
+}
+.scope-cross {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to right, transparent calc(50% - 0.5px), var(--border) 50%, transparent calc(50% + 0.5px)),
+    linear-gradient(to bottom, transparent calc(50% - 0.5px), var(--border) 50%, transparent calc(50% + 0.5px));
+}
+.scope-sweep {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg,
+    transparent 0deg,
+    transparent 300deg,
+    rgba(34, 211, 238, 0.05) 330deg,
+    rgba(34, 211, 238, 0.28) 358deg,
+    rgba(34, 211, 238, 0.55) 360deg);
+  animation: scopeSweep 5.2s linear infinite;
+  will-change: transform;
+}
+:root[data-theme="light"] .scope-sweep {
+  background: conic-gradient(from 0deg,
+    transparent 0deg,
+    transparent 300deg,
+    rgba(8, 145, 178, 0.05) 330deg,
+    rgba(8, 145, 178, 0.25) 358deg,
+    rgba(8, 145, 178, 0.5) 360deg);
+}
+@keyframes scopeSweep { to { transform: rotate(360deg); } }
+.scope-core {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translate(-50%, -50%);
+  box-shadow: var(--glow);
+}
+.scope-blips { position: absolute; inset: 0; }
+.blip {
+  position: absolute;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--good);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.8);
+  animation: blipPing 4s ease-out infinite;
+}
+@keyframes blipPing {
+  0%   { opacity: 0.35; }
+  8%   { opacity: 1; box-shadow: 0 0 14px rgba(52, 211, 153, 1); }
+  40%  { opacity: 0.55; }
+  100% { opacity: 0.35; }
+}
+.scope-caption {
+  font-size: 10.5px;
+  color: var(--faint);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+/* ---- live approvals ticker ---- */
+.ticker {
+  position: relative;
+  margin-top: clamp(26px, 4vw, 48px);
+  width: 100%;
+  overflow: hidden;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 0;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+}
+.ticker-track {
+  display: inline-flex;
+  gap: 34px;
+  white-space: nowrap;
+  padding-left: 34px;
+  width: max-content;
+}
+.ticker-track.scrolling { animation: tickerScroll linear infinite; }
+.ticker:hover .ticker-track.scrolling { animation-play-state: paused; }
+@keyframes tickerScroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.tick-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+.tick-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--good);
+  box-shadow: var(--good-glow);
+  flex: none;
+}
+
+/* ---- scroll cue ---- */
+.scroll-cue {
+  display: flex;
+  justify-content: center;
+  margin: 18px auto 0;
+  width: 26px; height: 42px;
+  border: 2px solid var(--border-strong);
+  border-radius: 999px;
+  position: relative;
+  transition: border-color 0.2s ease;
+}
+.scroll-cue:hover { border-color: var(--accent); text-decoration: none; }
+.scroll-cue-wheel {
+  position: absolute;
+  top: 7px;
+  width: 4px; height: 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  animation: cueDrop 1.8s ease-in-out infinite;
+}
+@keyframes cueDrop {
+  0%   { transform: translateY(0); opacity: 1; }
+  70%  { transform: translateY(14px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 0; }
+}
+
+/* ---- 3D tilt on stat cards (vars driven by fx.mjs, pointer:fine only) ---- */
+.card, .hero-stat {
+  transform: perspective(700px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transition: transform 0.18s ease-out, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+/* Hover lift composes WITH the tilt (otherwise .card:hover's transform wins
+   the cascade and snaps the tilt flat). */
+.card:hover {
+  transform: perspective(700px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateY(-3px);
+}
+.card::after {
+  background:
+    radial-gradient(220px circle at var(--mx, 50%) var(--my, 50%), rgba(34, 211, 238, 0.14), transparent 65%),
+    var(--grad-soft);
+}
+
+/* ---- section nav dots (scrollspy, wide screens only) ---- */
+#section-dots {
+  position: fixed;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 40;
+}
+@media (min-width: 1280px) { #section-dots { display: flex; } }
+#section-dots .dot {
+  position: relative;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+#section-dots .dot:hover { background: var(--accent); transform: scale(1.35); }
+#section-dots .dot.active {
+  background: var(--accent);
+  box-shadow: var(--glow);
+  transform: scale(1.4);
+}
+#section-dots .dot-tip {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--text);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+#section-dots .dot:hover .dot-tip { opacity: 1; }
+
+/* ---- starfield canvas (hero backdrop, painted by fx.mjs) ---- */
+.hero-stars {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+/* Engine fades the hero's content as it scrolls away (var set per frame). */
+#hero .hero-inner, #hero .ticker, #hero .scroll-cue { opacity: var(--hero-fade, 1); }
+
+/* ---- ghost titles: giant outlined words drifting behind sections ----
+   Pure CSS content from data-ghost; fx.mjs drives --gx (parallax drift)
+   and --gsk (scroll-velocity shear). Sections have backdrop-filter, hence
+   their own stacking context → z-index:-1 sits between the section's glass
+   background and its content. overflow:hidden clips the excess. */
+main > section[data-ghost]::after {
+  content: attr(data-ghost);
+  position: absolute;
+  top: -14px;
+  right: -8px;
+  z-index: -1;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(84px, 13vw, 180px);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: transparent;
+  -webkit-text-stroke: 1.5px var(--border-strong);
+  opacity: 0.55;
+  pointer-events: none;
+  user-select: none;
+  transform: translateX(var(--gx, 0px)) skewY(var(--gsk, 0deg));
+  will-change: transform;
+}
+
+/* ---- journey scrollytelling (#journey) ----
+   The section sheds its glass card skin: the pin needs overflow:visible
+   (an overflow:hidden ancestor kills position:sticky). */
+#journey {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  overflow: visible;
+  padding: 0;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+#journey::before { display: none; }
+.j-track { height: 280vh; }
+.j-pin {
+  position: sticky;
+  top: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 88px clamp(18px, 4vw, 44px) 40px;
+}
+.j-rail {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--ring-track);
+  margin: 26px 0 34px;
+  overflow: hidden;
+}
+.j-rail-fill {
+  height: 100%;
+  width: 100%;
+  border-radius: 999px;
+  background: var(--grad);
+  box-shadow: var(--glow);
+  transform-origin: 0 50%;
+  transform: scaleX(1); /* static default (no-JS / reduced motion) */
+}
+#journey.j-armed .j-rail-fill { transform: scaleX(0); }
+.j-stages {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(14px, 2.5vw, 28px);
+}
+.j-stage {
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: clamp(16px, 2.4vw, 28px);
+  position: relative;
+  overflow: hidden;
+  transition: opacity 0.5s ease, transform 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+              border-color 0.5s ease, box-shadow 0.5s ease;
+}
+.j-stage::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--grad);
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+/* Armed (scroll-driven): stages wait in the dark until the rail reaches them. */
+#journey.j-armed .j-stage { opacity: 0.28; transform: translateY(18px) scale(0.985); }
+#journey.j-armed .j-stage.lit,
+#journey:not(.j-armed) .j-stage {
+  opacity: 1;
+  transform: none;
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm), var(--glow);
+}
+#journey.j-armed .j-stage.lit::before, #journey:not(.j-armed) .j-stage::before { opacity: 1; }
+.j-idx {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--faint);
+}
+.j-stage h3 {
+  margin: 8px 0 14px;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  color: var(--text);
+}
+.j-num {
+  display: block;
+  font-family: var(--font-display);
+  font-size: clamp(1.9rem, 4vw, 3rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  background: var(--grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--accent);
+}
+.j-cap {
+  margin-top: 10px;
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.j-live { min-height: 1.4em; font-weight: 600; letter-spacing: 0.02em; }
+
+/* ---- desktop layout upgrade: calculator becomes a two-column console ---- */
+@media (min-width: 1000px) {
+  #calculator {
+    display: grid;
+    grid-template-columns: 330px minmax(0, 1fr);
+    column-gap: 38px;
+    align-items: start;
+  }
+  #calculator > .eyebrow, #calculator > h2 { grid-column: 1 / -1; }
+  #calc-form {
+    grid-column: 1;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 18px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+  }
+  #calc-form input[type="date"], #calc-form select { width: 100%; }
+  #calc-out { grid-column: 2; min-width: 0; }
+}
+
 /* ---------- Mobile (≤640px) ---------- */
 @media (max-width: 640px) {
+  /* Hero collapses to a centered single column; scope shrinks below copy. */
+  .hero-inner { grid-template-columns: 1fr; text-align: center; }
+  .hero-copy { align-items: center; }
+  .hero-display { max-width: 16ch; }
+  .hero-stats, .hero-ctas { justify-content: center; }
+  #meta { justify-content: center; }
+  .scope { --scope-size: min(72vw, 300px); }
+  #section-dots { display: none; }
+  #cursor-glow, .grain { display: none; }
+
+  /* Journey: 2×2 stages, shorter scroll, smaller numerals. */
+  .j-track { height: 220vh; }
+  .j-stages { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .j-pin { padding-top: 72px; }
+
+  /* Ghost titles scale down and hug the corner. */
+  main > section[data-ghost]::after { font-size: 64px; top: -8px; opacity: 0.4; }
+
   body { font-size: 13px; }
 
   header { padding: 10px 14px; gap: 10px; }

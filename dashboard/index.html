@@ -25,6 +25,10 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 </head>
 <body>
+<div id="scroll-progress" aria-hidden="true"></div>
+<div id="cursor-glow" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
+<nav id="section-dots" aria-label="Section navigation"></nav>
 <header>
   <a class="wordmark" href="#hero" aria-label="OPT Radar — back to top">
     <svg class="radar-glyph" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false">
@@ -49,39 +53,109 @@
 
 <main>
   <!-- Launch hero: static HTML, no module. headline.mjs fills the hero-stat-* ids
-       defensively (skips them if absent). app.js writes the live stamp into #meta. -->
+       defensively (skips them if absent). app.js writes the live stamp into #meta.
+       fx.mjs plots real approvals as radar blips + feeds the ticker. -->
   <section id="hero" aria-label="OPT Radar overview">
+    <canvas class="hero-stars" aria-hidden="true"></canvas>
     <div class="hero-inner">
-      <span class="hero-badge"><span class="pulse-dot"></span> LIVE · community approval intelligence</span>
-      <h1 class="hero-display">Know where your <span class="grad-text">OPT case</span> stands.</h1>
-      <p class="hero-sub">Real approval timelines from 2,400+ community-reported cases — refreshed hourly, survival-adjusted for the silent majority.</p>
-      <div class="hero-stats">
-        <div class="hero-stat">
-          <span class="hero-stat-value" id="hero-stat-cases">—</span>
-          <span class="hero-stat-label">cases tracked</span>
+      <div class="hero-copy">
+        <span class="hero-badge"><span class="pulse-dot"></span> LIVE · community approval intelligence</span>
+        <h1 class="hero-display" aria-label="Know where your OPT case stands.">
+          <span class="hw">Know</span> <span class="hw">where</span> <span class="hw">your</span>
+          <span class="hw grad-text">OPT&nbsp;case</span> <span class="hw">stands.</span>
+        </h1>
+        <p class="hero-sub">Real approval timelines from 2,400+ community-reported cases — refreshed hourly, survival-adjusted for the silent majority.</p>
+        <div class="hero-stats">
+          <div class="hero-stat">
+            <span class="hero-stat-value" id="hero-stat-cases">—</span>
+            <span class="hero-stat-label">cases tracked</span>
+          </div>
+          <div class="hero-stat">
+            <span class="hero-stat-value" id="hero-stat-approved">—</span>
+            <span class="hero-stat-label">approved</span>
+          </div>
+          <div class="hero-stat">
+            <span class="hero-stat-value" id="hero-stat-week">—</span>
+            <span class="hero-stat-label">approved · last 7 days</span>
+          </div>
         </div>
-        <div class="hero-stat">
-          <span class="hero-stat-value" id="hero-stat-approved">—</span>
-          <span class="hero-stat-label">approved</span>
+        <div class="hero-ctas">
+          <a class="btn-primary" href="#calculator">Project my timeline</a>
+          <a class="btn-ghost" href="#live">See today's approvals</a>
         </div>
-        <div class="hero-stat">
-          <span class="hero-stat-value" id="hero-stat-week">—</span>
-          <span class="hero-stat-label">approved · last 7 days</span>
-        </div>
+        <div id="meta"></div>
       </div>
-      <div class="hero-ctas">
-        <a class="btn-primary" href="#calculator">Project my timeline</a>
-        <a class="btn-ghost" href="#live">See today's approvals</a>
+
+      <!-- Radar scope: rings + rotating sweep are pure CSS; fx.mjs drops in
+           .blip dots — each one a REAL recent approval (radius = how fast). -->
+      <div class="hero-scope-wrap" aria-hidden="true">
+        <div class="scope">
+          <div class="scope-rings"></div>
+          <div class="scope-cross"></div>
+          <div class="scope-sweep"></div>
+          <div class="scope-blips"></div>
+          <div class="scope-core"></div>
+        </div>
+        <p class="scope-caption">each blip = a recent approval · closer to center = faster</p>
       </div>
-      <div id="meta"></div>
     </div>
+
+    <!-- Live approvals ticker tape -->
+    <div class="ticker" aria-hidden="true">
+      <div class="ticker-track" id="ticker-track"></div>
+    </div>
+
+    <a class="scroll-cue" href="#headline" aria-label="Scroll to the data">
+      <span class="scroll-cue-wheel"></span>
+    </a>
   </section>
 
   <!-- Pulse stats + global percentile ruler (module builds its own eyebrow + h2) -->
-  <section id="headline"></section>
+  <section id="headline" data-ghost="PULSE"></section>
 
   <!-- Live: "N approved since last update" + throughput + personal hope panel -->
-  <section id="live"></section>
+  <section id="live" data-ghost="LIVE"></section>
+
+  <!-- Journey: pinned scrollytelling. fx.mjs fills the numbers from real data
+       and drives the rail/stage ignition as you scroll through .j-track.
+       data-nofx: opts out of the reveal system (pinned = must stay untransformed).
+       Without JS (or with reduced motion) it renders fully lit and static. -->
+  <section id="journey" data-nofx>
+    <div class="j-track">
+      <div class="j-pin">
+        <span class="eyebrow">The journey</span>
+        <h2>Anatomy of an OPT case</h2>
+        <div class="j-rail" aria-hidden="true"><div class="j-rail-fill"></div></div>
+        <div class="j-stages">
+          <div class="j-stage">
+            <span class="j-idx">01</span>
+            <h3>Filed</h3>
+            <span class="j-num" id="j-num-filed">—</span>
+            <p class="j-cap">cases tracked in the community dataset</p>
+          </div>
+          <div class="j-stage">
+            <span class="j-idx">02</span>
+            <h3>Biometrics</h3>
+            <span class="j-num" id="j-num-bio">—</span>
+            <p class="j-cap">median days from filing to biometrics</p>
+          </div>
+          <div class="j-stage">
+            <span class="j-idx">03</span>
+            <h3>The wait</h3>
+            <span class="j-num" id="j-num-wait">—</span>
+            <p class="j-cap" id="j-cap-wait">median days filed → approved (regular)</p>
+          </div>
+          <div class="j-stage">
+            <span class="j-idx">04</span>
+            <h3>Approved</h3>
+            <span class="j-num" id="j-num-approved">—</span>
+            <p class="j-cap" id="j-cap-approved">approved so far — and counting</p>
+          </div>
+        </div>
+        <p class="j-live muted" id="j-live-line"></p>
+      </div>
+    </div>
+  </section>
 
   <!-- Personal projection.
        Eyebrow note: sections whose modules only write into inner divs get a
@@ -89,7 +163,7 @@
        KEEP the <h2> node (trends, funnel, rfe, centers, weekday) carry the
        eyebrow as a data-eyebrow attribute rendered via CSS ::before, so it
        survives re-renders. -->
-  <section id="calculator">
+  <section id="calculator" data-ghost="PROJECT">
     <span class="eyebrow">Personal projection</span>
     <h2>My timeline</h2>
     <form id="calc-form"></form>
@@ -97,27 +171,27 @@
   </section>
 
   <!-- Cases near yours -->
-  <section id="similar">
+  <section id="similar" data-ghost="PEERS">
     <span class="eyebrow">Peer comparison</span>
     <h2>Similar cases</h2>
     <div id="similar-out"></div>
   </section>
 
   <!-- Approval wave: regular queue front + premium 30-business-day clock -->
-  <section id="wave">
+  <section id="wave" data-ghost="WAVE">
     <span class="eyebrow">Where the line is moving</span>
     <h2>Approval wave</h2>
     <div id="wave-out"></div>
   </section>
 
   <!-- Current trends (module rebuilds section but preserves this h2 node) -->
-  <section id="trends"><h2 data-eyebrow="Momentum">Trends</h2></section>
+  <section id="trends" data-ghost="TRENDS"><h2 data-eyebrow="Momentum">Trends</h2></section>
 
   <!-- Full paginated approvals list (module builds its own h2) -->
-  <section id="approvals"></section>
+  <section id="approvals" data-ghost="LOG"></section>
 
   <!-- Heat-map calendars -->
-  <section id="calendars">
+  <section id="calendars" data-ghost="HEAT">
     <span class="eyebrow">Day by day</span>
     <h2>Calendars</h2>
     <h3>Cohort completion — % of each day's applicants approved so far</h3>
@@ -127,18 +201,18 @@
   </section>
 
   <!-- Stage / RFE / center / weekday breakdowns (modules preserve these h2 nodes) -->
-  <section id="funnel"><h2 data-eyebrow="Pipeline stages">Stage funnel</h2></section>
-  <section id="rfe"><h2 data-eyebrow="Risk watch">RFE / NOID</h2></section>
-  <section id="centers"><h2 data-eyebrow="Processing centers">Service centers</h2></section>
-  <section id="weekday"><h2 data-eyebrow="Timing patterns">Approvals by weekday</h2></section>
+  <section id="funnel" data-ghost="STAGES"><h2 data-eyebrow="Pipeline stages">Stage funnel</h2></section>
+  <section id="rfe" data-ghost="RISK"><h2 data-eyebrow="Risk watch">RFE / NOID</h2></section>
+  <section id="centers" data-ghost="HUBS"><h2 data-eyebrow="Processing centers">Service centers</h2></section>
+  <section id="weekday" data-ghost="RHYTHM"><h2 data-eyebrow="Timing patterns">Approvals by weekday</h2></section>
 
   <!-- Meta -->
-  <section id="diff">
+  <section id="diff" data-ghost="INTEL">
     <span class="eyebrow">Fresh intel</span>
     <h2>New since previous snapshot</h2>
     <div id="diff-out"></div>
   </section>
-  <section id="quality">
+  <section id="quality" data-ghost="TRUST">
     <span class="eyebrow">Transparency</span>
     <h2>Data quality</h2>
     <div id="quality-out"></div>

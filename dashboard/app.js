@@ -31,6 +31,7 @@ import * as approvals  from './modules/approvals.mjs?v=__BUILD__';
 import * as calendars  from './modules/calendars.mjs?v=__BUILD__';
 import * as aggregates from './modules/aggregates.mjs?v=__BUILD__';
 import * as panels     from './modules/panels.mjs?v=__BUILD__';
+import * as fx         from './modules/fx.mjs?v=__BUILD__';         // cinematic layer (reveals, ticker, radar blips)
 
 // Render order = visual order down the page. Each entry is one module's render().
 const MODULES = [
@@ -43,6 +44,7 @@ const MODULES = [
   ['calendars', calendars],
   ['aggregates', aggregates],
   ['panels', panels],
+  ['fx', fx],           // LAST: decorates the DOM the data modules just built
 ];
 
 // Tiny event bus. caseChange → cheer's personal hope panel + projection toasts.
