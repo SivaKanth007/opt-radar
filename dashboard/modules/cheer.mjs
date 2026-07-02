@@ -259,6 +259,10 @@ export function render(ctx) {
   // Fresh, idempotent render: clear everything we own.
   root.replaceChildren();
 
+  // Section heading (the desktop grid shows #live as a side card next to
+  // #headline, so it needs its own title like every other section).
+  root.append(el('span', 'eyebrow', 'Right now'), el('h2', null, 'Live approvals'));
+
   // ---- LIVE BANNER -------------------------------------------------------
   let fresh;
   try {

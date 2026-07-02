@@ -1148,7 +1148,7 @@ main > section.fx-reveal.in > *:nth-child(n+5) { transition-delay: 0.32s; }
   justify-self: center;
 }
 .scope {
-  --scope-size: clamp(260px, 30vw, 460px);
+  --scope-size: clamp(260px, 28vw, 540px);
   position: relative;
   width: var(--scope-size);
   height: var(--scope-size);
@@ -1730,6 +1730,112 @@ th.sorted .sort-ind { opacity: 1; }
   }
   #calc-form input[type="date"], #calc-form select { width: 100%; }
   #calc-out { grid-column: 2; min-width: 0; }
+}
+
+/* ===================================================================
+   DESKTOP BENTO GRID (≥1100px)
+   The page stops being one phone column: <main> becomes a 12-column
+   grid and sections share rows. Placement is pure CSS on permanent
+   section nodes, so module re-renders never disturb the layout.
+   Two tiers: ≥1100px pairs the short analytics sections; ≥1500px
+   (full-HD desktops) also splits calculator/similar and wave/trends.
+   =================================================================== */
+@media (min-width: 1100px) {
+  main {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 30px 26px;
+    max-width: 1780px;
+    padding: 40px 36px 96px;
+  }
+  /* Grid children must be allowed to shrink or a wide table blows the row. */
+  main > section { grid-column: span 12; min-width: 0; }
+
+  section { padding: 28px 32px; }
+
+  /* Row: the big picture + the live feed side by side. */
+  #headline { grid-column: span 8; }
+  #live     { grid-column: span 4; display: flex; flex-direction: column; gap: 12px; }
+
+  /* Row: stage medians + RFE risk. */
+  #funnel { grid-column: span 6; }
+  #rfe    { grid-column: span 6; }
+
+  /* Row: center table + weekday rhythm chart. */
+  #centers { grid-column: span 5; }
+  #weekday { grid-column: span 7; }
+
+  /* Row: fresh intel + transparency. */
+  #diff    { grid-column: span 5; }
+  #quality { grid-column: span 7; }
+
+  /* Trends: while the section still spans the full row (below 1500px),
+     the three charts sit shoulder to shoulder instead of stacking.
+     Children are exactly h2, then (h3 + div.chart-box) ×3. */
+  #trends {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    column-gap: 22px;
+    align-content: start;
+  }
+  #trends > h2 { grid-column: 1 / -1; }
+  #trends > h3:nth-of-type(1) { grid-row: 2; grid-column: 1; }
+  #trends > h3:nth-of-type(2) { grid-row: 2; grid-column: 2; }
+  #trends > h3:nth-of-type(3) { grid-row: 2; grid-column: 3; }
+  #trends > div:nth-of-type(1) { grid-row: 3; grid-column: 1; }
+  #trends > div:nth-of-type(2) { grid-row: 3; grid-column: 2; }
+  #trends > div:nth-of-type(3) { grid-row: 3; grid-column: 3; }
+  #trends > p { grid-column: 1 / -1; }
+
+  /* Ghost titles scale to their card width so narrow tiles aren't drowned. */
+  #headline[data-ghost]::after { font-size: 140px; }
+  #weekday[data-ghost]::after, #quality[data-ghost]::after { font-size: 120px; }
+  #live[data-ghost]::after, #funnel[data-ghost]::after, #rfe[data-ghost]::after,
+  #centers[data-ghost]::after, #diff[data-ghost]::after { font-size: 84px; top: -8px; }
+
+  footer { padding: 8px 36px 64px; }
+  .footer-inner { max-width: 1708px; }
+}
+
+/* Full-HD tier: the tall sections pair up too. */
+@media (min-width: 1500px) {
+  #calculator { grid-column: span 7; }
+  #similar    { grid-column: span 5; }
+  #wave       { grid-column: span 7; }
+  #trends     { grid-column: span 5; }
+
+  /* Narrow trends column: charts stack again and stretch to match the
+     wave section's height (flex fills the row's stretched height). */
+  #trends {
+    display: flex;
+    flex-direction: column;
+  }
+  #trends .chart-box { flex: 1 1 220px; height: auto; min-height: 220px; }
+
+  /* Calculator console: form column can relax a little at this width. */
+  #calculator { grid-template-columns: 310px minmax(0, 1fr); }
+
+  #calculator[data-ghost]::after, #wave[data-ghost]::after { font-size: 120px; }
+  #similar[data-ghost]::after, #trends[data-ghost]::after { font-size: 84px; top: -8px; }
+}
+
+/* Header quick-nav (hidden until there's room). */
+.top-links { display: none; }
+@media (min-width: 1280px) {
+  .top-links { display: inline-flex; gap: 4px; margin-left: 14px; }
+  .top-links a {
+    padding: 7px 13px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--muted);
+  }
+  .top-links a:hover {
+    color: var(--text);
+    background: var(--surface-2);
+    text-decoration: none;
+  }
 }
 
 /* ---------- Mobile (≤640px) ---------- */
