@@ -42,9 +42,9 @@
   </a>
   <nav class="nav-actions" aria-label="Site controls">
     <div id="theme-toggle" class="theme-toggle" role="group" aria-label="Theme">
-      <button type="button" data-theme-pref="light" title="Light" aria-label="Light theme">☀</button>
-      <button type="button" data-theme-pref="dark" title="Dark" aria-label="Dark theme">🌙</button>
-      <button type="button" data-theme-pref="system" title="Match system" aria-label="Match system theme">⚙</button>
+      <button type="button" data-theme-pref="light" title="Light" aria-label="Light theme"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12h2.5M19 12h2.5M5 5l1.8 1.8M17.2 17.2 19 19M19 5l-1.8 1.8M6.8 17.2 5 19"/></svg></button>
+      <button type="button" data-theme-pref="dark" title="Dark" aria-label="Dark theme"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5z"/></svg></button>
+      <button type="button" data-theme-pref="system" title="Match system" aria-label="Match system theme"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M9 21h6M12 17v4"/></svg></button>
     </div>
     <button id="refresh-btn">Refresh data</button>
   </nav>
@@ -111,16 +111,16 @@
   </section>
 
   <!-- Pulse stats + global percentile ruler (module builds its own eyebrow + h2) -->
-  <section id="headline" data-ghost="PULSE"></section>
+  <section id="headline" data-icon data-ghost="PULSE"></section>
 
   <!-- Live: "N approved since last update" + throughput + personal hope panel -->
-  <section id="live" data-ghost="LIVE"></section>
+  <section id="live" data-icon data-ghost="LIVE"></section>
 
   <!-- Journey: pinned scrollytelling. fx.mjs fills the numbers from real data
        and drives the rail/stage ignition as you scroll through .j-track.
        data-nofx: opts out of the reveal system (pinned = must stay untransformed).
        Without JS (or with reduced motion) it renders fully lit and static. -->
-  <section id="journey" data-nofx>
+  <section id="journey" data-icon data-nofx>
     <div class="j-track">
       <div class="j-pin">
         <span class="eyebrow">The journey</span>
@@ -129,24 +129,28 @@
         <div class="j-stages">
           <div class="j-stage">
             <span class="j-idx">01</span>
+            <span class="j-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l5 5v13H7V3z"/><path d="M14 3v5h5"/></svg></span>
             <h3>Filed</h3>
             <span class="j-num" id="j-num-filed">—</span>
             <p class="j-cap">cases tracked in the community dataset</p>
           </div>
           <div class="j-stage">
             <span class="j-idx">02</span>
+            <span class="j-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 19c-1.5-2.5-2-5-1-8a6.5 6.5 0 0 1 12.5 1c0 2.5-.3 5-1.5 7"/><path d="M12 11c0 3-.5 6-2 8.5"/><path d="M15.5 13.5c0 2-.3 4-1 5.5"/></svg></span>
             <h3>Biometrics</h3>
             <span class="j-num" id="j-num-bio">—</span>
             <p class="j-cap">median days from filing to biometrics</p>
           </div>
           <div class="j-stage">
             <span class="j-idx">03</span>
+            <span class="j-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h10M7 21h10M8 3c0 4 3 5.5 4 6.5 1-1 4-2.5 4-6.5M8 21c0-4 3-5.5 4-6.5 1 1 4 2.5 4 6.5"/></svg></span>
             <h3>The wait</h3>
             <span class="j-num" id="j-num-wait">—</span>
             <p class="j-cap" id="j-cap-wait">median days filed → approved (regular)</p>
           </div>
           <div class="j-stage">
             <span class="j-idx">04</span>
+            <span class="j-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg></span>
             <h3>Approved</h3>
             <span class="j-num" id="j-num-approved">—</span>
             <p class="j-cap" id="j-cap-approved">approved so far — and counting</p>
@@ -163,7 +167,7 @@
        KEEP the <h2> node (trends, funnel, rfe, centers, weekday) carry the
        eyebrow as a data-eyebrow attribute rendered via CSS ::before, so it
        survives re-renders. -->
-  <section id="calculator" data-ghost="PROJECT">
+  <section id="calculator" data-icon data-ghost="PROJECT">
     <span class="eyebrow">Personal projection</span>
     <h2>My timeline</h2>
     <form id="calc-form"></form>
@@ -171,14 +175,14 @@
   </section>
 
   <!-- Cases near yours -->
-  <section id="similar" data-ghost="PEERS">
+  <section id="similar" data-icon data-ghost="PEERS">
     <span class="eyebrow">Peer comparison</span>
     <h2>Similar cases</h2>
     <div id="similar-out"></div>
   </section>
 
   <!-- Approval wave: regular queue front + premium 30-business-day clock -->
-  <section id="wave" data-ghost="WAVE">
+  <section id="wave" data-icon data-ghost="WAVE">
     <span class="eyebrow">Where the line is moving</span>
     <h2>Approval wave</h2>
     <div id="wave-out"></div>
@@ -188,10 +192,10 @@
   <section id="trends" data-ghost="TRENDS"><h2 data-eyebrow="Momentum">Trends</h2></section>
 
   <!-- Full paginated approvals list (module builds its own h2) -->
-  <section id="approvals" data-ghost="LOG"></section>
+  <section id="approvals" data-icon data-ghost="LOG"></section>
 
   <!-- Heat-map calendars -->
-  <section id="calendars" data-ghost="HEAT">
+  <section id="calendars" data-icon data-ghost="HEAT">
     <span class="eyebrow">Day by day</span>
     <h2>Calendars</h2>
     <h3>Cohort completion — % of each day's applicants approved so far</h3>
@@ -207,12 +211,12 @@
   <section id="weekday" data-ghost="RHYTHM"><h2 data-eyebrow="Timing patterns">Approvals by weekday</h2></section>
 
   <!-- Meta -->
-  <section id="diff" data-ghost="INTEL">
+  <section id="diff" data-icon data-ghost="INTEL">
     <span class="eyebrow">Fresh intel</span>
     <h2>New since previous snapshot</h2>
     <div id="diff-out"></div>
   </section>
-  <section id="quality" data-ghost="TRUST">
+  <section id="quality" data-icon data-ghost="TRUST">
     <span class="eyebrow">Transparency</span>
     <h2>Data quality</h2>
     <div id="quality-out"></div>

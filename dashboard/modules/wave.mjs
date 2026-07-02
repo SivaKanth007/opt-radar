@@ -63,13 +63,28 @@ export function render(ctx) {
     out.append(el('p', 'muted', 'No regular-processing approvals reported in the last 14 days.'));
   } else {
     const callout = el('p');
+    const calloutStrong = el('strong', null,
+      `Approvals in the last ${front.windowDays} days went to filers who applied ` +
+      `${front.appliedP25} – ${front.appliedP75}`);
     callout.append(
-      el('strong', null,
-        `Approvals in the last ${front.windowDays} days went to filers who applied ` +
-        `${front.appliedP25} – ${front.appliedP75}`),
+      calloutStrong,
       el('span', 'muted', ` (median ${front.appliedP50} · middle 50% of ${front.n} approvals; full range ${front.appliedMin} → ${front.appliedMax})`),
     );
     out.append(callout);
+
+    if (ctx.explain) {
+      ctx.explain(calloutStrong, () => ({
+        title: 'How the wave front is located',
+        lines: [
+          ['window', `last ${front.windowDays} days of reported approvals`],
+          ['regular-processing approvals in window', String(front.n)],
+          ['their applied dates, p25 → p75', `${front.appliedP25} → ${front.appliedP75}`],
+          ['median applied date', front.appliedP50],
+          ['full range', `${front.appliedMin} → ${front.appliedMax}`],
+        ],
+        note: 'Regular processing is roughly first-in-first-out by applied date, so the applied dates behind fresh approvals mark where the queue front is right now.',
+      }));
+    }
   }
 
   // Personal position line (filled by onCaseChange).
@@ -96,12 +111,46 @@ export function render(ctx) {
       c.append(el('div', 'value', value), el('div', 'label', label));
       return c;
     };
-    cards.append(
-      card('good', `${dist.within30}%`, `approved within 30 business days (n=${dist.n})`),
-      card('', `${fmt(dist.p50)} BD`, 'median business days on the clock'),
-      card('warn', `${dist.over30}`, 'ran past BD 30 — fee refunded, still prioritized'),
-    );
+    const cWithin = card('good', `${dist.within30}%`, `approved within 30 business days (n=${dist.n})`);
+    const cMedian = card('', `${fmt(dist.p50)} BD`, 'median business days on the clock');
+    const cOver = card('warn', `${dist.over30}`, 'ran past BD 30 — fee refunded, still prioritized');
+    cards.append(cWithin, cMedian, cOver);
     out.append(cards);
+
+    // Every premium-clock number defends itself on click.
+    if (ctx.explain) {
+      const le30 = dist.values.all.filter(v => v <= 30).length;
+      ctx.explain(cWithin, () => ({
+        title: `How ${dist.within30}% was computed`,
+        lines: [
+          ['approved premium cases with a known clock start', String(dist.n)],
+          ['clock start', 'biometrics (filed premium) / upgrade date'],
+          ['approved within 30 business days', String(le30)],
+          ['share', `${le30} ÷ ${dist.n} = ${dist.within30}%`],
+        ],
+        note: 'Business days skip weekends and US federal holidays — the same clock USCIS runs.',
+      }));
+      ctx.explain(cMedian, () => ({
+        title: 'Median business days on the clock',
+        lines: [
+          ['measured cases', String(dist.n)],
+          ['premium from start (clock = biometrics)', String(dist.values.initial.length)],
+          ['upgraded later (clock = upgrade date)', String(dist.values.upgraded.length)],
+          ['median (p50)', `${fmt(dist.p50)} BD`],
+          ['p90', `${fmt(dist.p90)} BD`],
+        ],
+        note: 'Half of premium cases resolved by this business day; 90% by the p90.',
+      }));
+      ctx.explain(cOver, () => ({
+        title: 'Cases past business day 30',
+        lines: [
+          ['total measured', String(dist.n)],
+          ['past BD 30', String(dist.over30)],
+          ['longest seen', `${fmt(dist.max)} BD`],
+        ],
+        note: 'Past BD 30 USCIS refunds the premium fee, but the case keeps priority handling — these still resolve.',
+      }));
+    }
     buildHistChart(ctx, out, dist, bdHistogram);
     out.append(el('p', 'muted',
       'Past business day 30 USCIS refunds the premium fee but the case keeps priority handling — ' +

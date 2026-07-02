@@ -13,7 +13,7 @@
 
 import {
   $, $$, el, fmt, pct, wrapTable, countUp, ring, toast, confetti, prefersReducedMotion,
-  isCompactViewport, edgeAnchor,
+  isCompactViewport, edgeAnchor, icon, explain,
 } from './modules/util.mjs?v=__BUILD__';
 
 import { daysBetween, addDays, localToday, parseDate } from '../lib/dates.mjs?v=__BUILD__';
@@ -73,6 +73,7 @@ function buildCtx(data, diff) {
     state, bus,
     // util helpers
     $, $$, el, fmt, pct, wrapTable, countUp, ring, toast, confetti, prefersReducedMotion,
+    icon, explain,
     isCompactViewport, edgeAnchor,
     // lib namespaces (addBusinessDays/businessDaysBetween are holiday-aware)
     dates: { daysBetween, addDays, addBusinessDays, businessDaysBetween, localToday, parseDate },

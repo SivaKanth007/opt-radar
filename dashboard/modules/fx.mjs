@@ -529,9 +529,13 @@ function buildTicker(ctx) {
     const center = c.service_center || null;
     const dot = document.createElement('span');
     dot.className = 'tick-dot';
-    span.append(dot, document.createTextNode(
-      `approved ${c.date_approved} · ${days}d${c.premium ? ' · ⚡ premium' : ''}${center ? ' · ' + center : ''}`
-    ));
+    span.append(dot, document.createTextNode(`approved ${c.date_approved} · ${days}d`));
+    if (c.premium) {
+      span.append(document.createTextNode(' · '));
+      if (ctx.icon) { const b = ctx.icon('bolt', 11); b.style.color = 'var(--warn)'; span.append(b); }
+      span.append(document.createTextNode(' premium'));
+    }
+    if (center) span.append(document.createTextNode(' · ' + center));
     frag.append(span);
   }
 

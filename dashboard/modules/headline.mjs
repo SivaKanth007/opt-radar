@@ -67,13 +67,45 @@ export function render(ctx) {
     const goodAll = cases.filter(isGood);
     if (heroCases) countUp(heroCases, goodAll.length);
     if (heroApproved) countUp(heroApproved, goodAll.filter(c => c.date_approved).length);
+    let weekN = 0, weekAgo = null;
     if (heroWeek && refToday) {
       // Approvals dated within the last 7 days INCLUSIVE of today: [today-6, today].
-      const weekAgo = dates.addDays ? dates.addDays(refToday, -6) : null;
-      const n = weekAgo
+      weekAgo = dates.addDays ? dates.addDays(refToday, -6) : null;
+      weekN = weekAgo
         ? goodAll.filter(c => c.date_approved && c.date_approved >= weekAgo && c.date_approved <= refToday).length
         : 0;
-      countUp(heroWeek, n);
+      countUp(heroWeek, weekN);
+    }
+    if (ctx.explain) {
+      const wire = (id, build) => {
+        const stat = document.getElementById(id)?.closest('.hero-stat');
+        if (stat) ctx.explain(stat, build);
+      };
+      wire('hero-stat-cases', () => ({
+        title: 'Cases tracked',
+        lines: [
+          ['deduped rows (opt-pulse + opt-tracker)', String(cases.length)],
+          ['− impossible dates', String(cases.length - goodAll.length)],
+          ['= tracked', String(goodAll.length)],
+        ],
+        note: 'Cross-source duplicates are merged by username, then by date-triple.',
+      }));
+      wire('hero-stat-approved', () => ({
+        title: 'Approved',
+        lines: [
+          ['tracked cases', String(goodAll.length)],
+          ['with a reported approval date', String(goodAll.filter(c => c.date_approved).length)],
+        ],
+        note: 'Real approvals run higher — people stop updating after approval.',
+      }));
+      wire('hero-stat-week', () => ({
+        title: 'Approved · last 7 days',
+        lines: [
+          ['window', weekAgo ? `${weekAgo} → ${refToday}` : '—'],
+          ['approvals dated in window', String(weekN)],
+        ],
+        note: 'By approval date reported, not by when it was posted.',
+      }));
     }
   }
 
@@ -147,12 +179,62 @@ export function render(ctx) {
 
   // Numeric count-ups (earliest is a date string, set directly).
   // Count only good cases — matches the hero and every other panel's filter.
-  countUp(cTotal.value, cases.filter(isGood).length);
+  const goodCount = cases.filter(isGood).length;
+  countUp(cTotal.value, goodCount);
   countUp(cApproved.value, approvedAll.length);
   countUp(cPending.value, pending.length);
   cEarliest.value.textContent = earliest || '—';
   if (medianPendWait == null) cWait.value.textContent = '—';
   else countUp(cWait.value, medianPendWait, { suffix: 'd' });
+
+  // Provenance popovers — every number defends itself on click.
+  if (ctx.explain) {
+    const impossible = cases.length - goodCount;
+    ctx.explain(cTotal.card, () => ({
+      title: 'Total cases',
+      lines: [
+        ['rows across both sources (deduped)', String(cases.length)],
+        ['− impossible dates (excluded)', String(impossible)],
+        ['= counted', String(goodCount)],
+      ],
+      note: 'Impossible = a date sequence that cannot happen (approved before applied, future dates). Kept in raw data, excluded from every stat.',
+    }));
+    ctx.explain(cApproved.card, () => ({
+      title: 'Approved',
+      lines: [
+        ['counted cases', String(goodCount)],
+        ['with a reported approval date', String(approvedAll.length)],
+        ['share', `${Math.round((100 * approvedAll.length) / Math.max(1, goodCount))}%`],
+      ],
+      note: 'Undercounts reality — many people stop updating once approved. The survival-adjusted stats below correct for that.',
+    }));
+    ctx.explain(cPending.card, () => ({
+      title: 'Pending',
+      lines: [
+        ['counted cases', String(goodCount)],
+        ['with an applied date, no approval yet', String(pending.length)],
+      ],
+      note: 'Includes silent drop-offs (approved but never updated). The data-quality panel shows how many look stale.',
+    }));
+    ctx.explain(cEarliest.card, () => ({
+      title: 'Earliest approval (this cycle)',
+      lines: [
+        ['cycle ramp month (≥10% of peak filings)', cycleStart || '—'],
+        ['grace window for early filers', graceStart ? `${graceStart} →` : '—'],
+        ['earliest approval inside the window', earliest || '—'],
+      ],
+      note: 'Prior-cycle stragglers (e.g. a lone earlier-year filer approved recently) are excluded from this card but kept in the data.',
+    }));
+    ctx.explain(cWait.card, () => ({
+      title: 'Median pending wait so far',
+      lines: [
+        ['pending cases measured', String(pendAges.length)],
+        ['each measured as', 'applied date → today'],
+        ['median (p50)', medianPendWait == null ? '—' : `${fmt(medianPendWait)}d`],
+      ],
+      note: 'Half of everyone still waiting has already waited longer than this.',
+    }));
+  }
 
   // ---- Percentile ruler --------------------------------------------------
   const rulerSection = el('div', null);

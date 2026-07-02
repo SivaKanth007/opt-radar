@@ -12,6 +12,8 @@ const PAGE_SIZE = 25;
 
 // Module-local pagination state (survives re-renders of table body).
 let _currentPage = 1;
+// Column sort state — sorts the FULL filtered dataset (not just the page).
+let _sort = { col: 'approved', dir: -1 };
 // Hold references to filter controls so filter/page rebuilds can read them without
 // querying the DOM repeatedly after the first render.
 let _controls = null;
@@ -42,6 +44,43 @@ function buildBase(cases) {
   return cases
     .filter(isApproved)
     .sort((a, b) => (a.date_approved > b.date_approved ? -1 : a.date_approved < b.date_approved ? 1 : 0));
+}
+
+// Column definitions: header label + a sort accessor over the CASE OBJECT, so
+// sorting covers the entire filtered dataset — not just the rendered page.
+const COLUMNS = [
+  { key: 'approved', label: 'Approved', get: (c, d) => c.date_approved || '' },
+  { key: 'applied', label: 'Applied', get: (c) => c.date_applied || '' },
+  { key: 'days', label: 'Days', get: (c, days) => days ?? -1 },
+  { key: 'type', label: 'Type', get: (c) => c.opt_type || '' },
+  { key: 'pp', label: 'PP', get: (c) => (c.premium ? 1 : 0) },
+  { key: 'center', label: 'Center', get: (c) => c.service_center || '' },
+  { key: 'nat', label: 'Nationality', get: (c) => c.nationality || '' },
+  { key: 'link', label: 'Link', get: (c) => (c.reddit_url ? 1 : 0) },
+];
+
+function daysOf(c, daysBetween) {
+  return (c.date_applied && c.date_approved) ? daysBetween(c.date_applied, c.date_approved) : null;
+}
+
+function applySort(list) {
+  const col = COLUMNS.find(x => x.key === _sort.col);
+  if (!col || !_ctx) return list;
+  const { daysBetween } = _ctx.dates;
+  return [...list].sort((a, b) => {
+    const va = col.key === 'days' ? (daysOf(a, daysBetween) ?? -1) : col.get(a);
+    const vb = col.key === 'days' ? (daysOf(b, daysBetween) ?? -1) : col.get(b);
+    return (va < vb ? -1 : va > vb ? 1 : 0) * _sort.dir;
+  });
+}
+
+function refreshSortHeaders() {
+  if (!_section) return;
+  for (const th of _section.querySelectorAll('thead th')) {
+    const active = th.dataset.col === _sort.col;
+    th.classList.toggle('sorted', active);
+    th.setAttribute('aria-sort', active ? (_sort.dir === 1 ? 'ascending' : 'descending') : 'none');
+  }
 }
 
 /** Apply the current filter controls to the base list. */
@@ -122,9 +161,13 @@ function buildTableBody(ctx, filtered, page) {
     td4.textContent = c.opt_type ?? '—';
     tr.appendChild(td4);
 
-    // PP (premium)
+    // PP (premium) — SVG bolt, not an emoji glyph
     const td5 = document.createElement('td');
-    td5.textContent = c.premium ? '⚡' : '';
+    if (c.premium) {
+      td5.append(ctx.icon ? ctx.icon('bolt', 13) : el('span', null, 'PP'));
+      td5.title = 'Premium processing';
+      td5.style.color = 'var(--warn)';
+    }
     td5.style.textAlign = 'center';
     tr.appendChild(td5);
 
@@ -242,7 +285,8 @@ function refreshFootnote() {
 function refreshTable() {
   if (!_section || !_controls || !_ctx) return;
 
-  const tbody = buildTableBody(_ctx, _filtered, _currentPage);
+  const tbody = buildTableBody(_ctx, applySort(_filtered), _currentPage);
+  refreshSortHeaders();
   const oldTbody = _section.querySelector('tbody');
   if (oldTbody) {
     oldTbody.replaceWith(tbody);
@@ -372,22 +416,41 @@ export function render(ctx) {
 
   // ---- Table ----
   const table = document.createElement('table');
+  // This module sorts the FULL dataset itself — opt out of the DOM-level
+  // enhancer (which would only sort the visible page).
+  table.dataset.noEnhance = '1';
 
   const thead = document.createElement('thead');
   const headerRow = document.createElement('tr');
-  ['Approved', 'Applied', 'Days', 'Type', 'PP', 'Center', 'Nationality', 'Link'].forEach((text) => {
+  for (const col of COLUMNS) {
     const th = document.createElement('th');
-    th.textContent = text;
+    th.textContent = col.label;
+    th.dataset.col = col.key;
+    th.classList.add('sortable');
+    th.tabIndex = 0;
+    th.setAttribute('aria-sort', 'none');
+    th.append(el('span', 'sort-ind'));
+    const activate = () => {
+      if (_sort.col === col.key) _sort.dir = -_sort.dir;
+      else _sort = { col: col.key, dir: col.key === 'approved' || col.key === 'applied' ? -1 : 1 };
+      _currentPage = 1;
+      refreshTable();
+    };
+    th.addEventListener('click', activate);
+    th.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }
+    });
     headerRow.append(th);
-  });
+  }
   thead.append(headerRow);
   table.append(thead);
 
-  // Initial tbody
-  const tbody = buildTableBody(ctx, _filtered, _currentPage);
+  // Initial tbody (default sort: most recent approvals first)
+  const tbody = buildTableBody(ctx, applySort(_filtered), _currentPage);
   table.append(tbody);
 
   _section.append(wrapTable(table));
+  refreshSortHeaders();
 
   // ---- Pagination ----
   const pagination = buildPagination(ctx, _filtered.length, _currentPage);

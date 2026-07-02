@@ -310,7 +310,7 @@ function compute(ctx, fromSubmit) {
   out.append(buildRuler(ctx, { start, elapsed, kmP10, kmP50, kmP90 }));
 
   // ---- Approval-chance curve (the centerpiece) + headline stat ----
-  buildChanceChart(ctx, out, { curve, elapsed, kmP50, kmP90 });
+  buildChanceChart(ctx, out, { curve, elapsed, kmP50, kmP90, obs });
 
   // ---- Projection table: naive (events only) vs survival-adjusted ----
   const rows = [
@@ -465,7 +465,7 @@ function buildRuler(ctx, { start, elapsed, kmP10, kmP50, kmP90 }) {
  * Defensive: empty/null curve → muted note, no chart. Chart.js missing →
  * headline stat still renders. Reduced motion → animation disabled.
  */
-function buildChanceChart(ctx, out, { curve, elapsed, kmP50, kmP90 }) {
+function buildChanceChart(ctx, out, { curve, elapsed, kmP50, kmP90, obs }) {
   const { el, prefersReducedMotion } = ctx;
   const { kmSurvivalAt, kmQuantile } = ctx.stats;
 
@@ -480,12 +480,29 @@ function buildChanceChart(ctx, out, { curve, elapsed, kmP50, kmP90 }) {
   // ---- Headline stat (rendered under the chart; kept even if Chart.js is out) ----
   const chanceNow = Math.round(Math.max(0, Math.min(100, (1 - kmSurvivalAt(curve, elapsed)) * 100)));
   const headline = el('p');
-  headline.append(el('strong', null,
-    `By today (day ${elapsed}): ${chanceNow}% of similar cases were already approved`));
+  const headStrong = el('strong', null,
+    `By today (day ${elapsed}): ${chanceNow}% of similar cases were already approved`);
+  headline.append(headStrong);
   const tail = [];
   if (kmP50 != null && isFinite(kmP50)) tail.push(`by day ${kmP50}: 50%`);
   if (kmP90 != null && isFinite(kmP90)) tail.push(`by day ${kmP90}: 90%`);
   if (tail.length) headline.append(el('span', 'muted', ' · ' + tail.join(' · ')));
+
+  // Click the percentage → the Kaplan-Meier math behind it, with real counts.
+  if (ctx.explain && Array.isArray(obs)) {
+    const events = obs.filter(x => x.event).length;
+    ctx.explain(headStrong, () => ({
+      title: `How ${chanceNow}% was computed`,
+      lines: [
+        ['cohort observations', String(obs.length)],
+        ['approved (events)', String(events)],
+        ['still pending (censored)', String(obs.length - events)],
+        ['estimator', 'Kaplan-Meier survival S(t)'],
+        [`chance by day ${elapsed}`, `1 − S(${elapsed}) = ${chanceNow}%`],
+      ],
+      note: 'Censored cases count as "waited at least N days" instead of being ignored — that is what keeps this honest about people who never report their approval.',
+    }));
+  }
 
   if (!window.Chart) {
     out.append(el('p', 'muted', 'Chart unavailable (Chart.js did not load) — the numbers below still stand.'));
@@ -691,6 +708,21 @@ function renderSimilar(ctx, myCase) {
     sublabel: 'likely approved',
   }));
   head.append(ringWrap);
+
+  // Click the ring → exactly how the adjusted percentage was computed.
+  if (ctx.explain) {
+    ctx.explain(ringWrap, () => ({
+      title: `How ${Math.round(adjPct)}% was computed`,
+      lines: [
+        [`similar cases (±${SIM_WINDOW}d, same type & processing)`, String(sims.length)],
+        ['approved', String(approved.length)],
+        ['reported rate', `${approved.length} ÷ ${sims.length} = ${Math.round(ratePct)}%`],
+        ['stale silent drop-offs excluded', String(stalePending)],
+        ['adjusted rate', `${approved.length} ÷ ${adjDenom} = ${Math.round(adjPct)}%`],
+      ],
+      note: 'Stale = pending longer than the 99th percentile of all approved waits — statistically those are almost always approvals that were never reported. True denials are rare (low single digits).',
+    }));
+  }
 
   // Summary card with animated counts.
   const sumCard = el('div', 'card good');
