@@ -54,6 +54,31 @@ The fetch also tries to archive the raw megathread JSON as insurance. Reddit req
 
 The file is gitignored. Without it the archive step fails gracefully — all dashboard analytics work regardless.
 
+## Optional: Case Status Watch (personal, local-only)
+
+The **USCIS status watch** card (under *My timeline*) saves your receipt number **in your browser's localStorage only** — it is never committed, never sent to any server this project runs (there are none), and never routed through a third party.
+
+What works out of the box:
+- **Open on USCIS** — one click opens your case's status page with the number pre-filled.
+- **Copy** — copies the full receipt number for pasting on uscis.gov.
+
+Hands-free auto-checks (status re-checked every time you open the local dashboard) need the **free official USCIS developer API**, because uscis.gov blocks scripted reads of its status page:
+
+1. Register at [developer.uscis.gov](https://developer.uscis.gov) and create an app with the **Case Status API** product (sandbox is instant; production access takes a review).
+2. Put the app's credentials in `data/uscis-auth.json` (gitignored, like the Reddit file):
+
+```json
+{
+  "client_id": "YOUR_CLIENT_ID",
+  "client_secret": "YOUR_CLIENT_SECRET",
+  "environment": "production"
+}
+```
+
+3. Restart `node serve.mjs`. The card now re-checks on every visit (throttled to once per 30 minutes) and toasts when the status changes.
+
+Privacy model: receipt number in localStorage, credentials in a gitignored local file, requests go from **your machine directly to uscis.gov** — nothing else ever sees them.
+
 ## Scheduled Fetch (local)
 
 Windows Task Scheduler example (run from the project directory):

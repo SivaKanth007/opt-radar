@@ -31,6 +31,7 @@ import * as approvals  from './modules/approvals.mjs?v=__BUILD__';
 import * as calendars  from './modules/calendars.mjs?v=__BUILD__';
 import * as aggregates from './modules/aggregates.mjs?v=__BUILD__';
 import * as panels     from './modules/panels.mjs?v=__BUILD__';
+import * as casestatus from './modules/casestatus.mjs?v=__BUILD__'; // personal USCIS status watch (localStorage-only)
 import * as fx         from './modules/fx.mjs?v=__BUILD__';         // cinematic layer (reveals, ticker, radar blips)
 
 // Render order = visual order down the page. Each entry is one module's render().
@@ -44,6 +45,7 @@ const MODULES = [
   ['calendars', calendars],
   ['aggregates', aggregates],
   ['panels', panels],
+  ['casestatus', casestatus],
   ['fx', fx],           // LAST: decorates the DOM the data modules just built
 ];
 

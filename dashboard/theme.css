@@ -1709,6 +1709,74 @@ th.sorted .sort-ind { opacity: 1; }
 .table-filter-btn:hover { color: var(--text); border-color: var(--accent); transform: none; box-shadow: var(--glow); background-position: 0 0; }
 .table-filter-btn[aria-pressed="true"] { color: var(--btn-text); background: var(--grad); border-color: transparent; }
 
+/* ---- USCIS status watch (casestatus.mjs, inside #calculator) ---- */
+#case-status-mount { margin-top: 18px; }
+.case-watch {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  padding: 16px 18px;
+}
+.cs-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 10px;
+  color: var(--text);
+  font-size: 0.92rem;
+}
+.cs-title .svg-icon { color: var(--accent); }
+.cs-form { gap: 10px; }
+.cs-form input { flex: 1 1 150px; min-width: 0; text-transform: uppercase; }
+.cs-form button { flex: none; }
+.cs-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.cs-receipt { font-size: 13px; letter-spacing: 0.06em; }
+.cs-row-btns { display: inline-flex; gap: 6px; }
+.cs-forget {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  box-shadow: none;
+  padding: 5px 12px;
+  font-size: 11.5px;
+  border-radius: 999px;
+}
+.cs-forget:hover { color: var(--bad); border-color: var(--bad); background: transparent; box-shadow: none; }
+.cs-pill {
+  display: inline-block;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  background: var(--glass-strong);
+}
+.cs-pill.cs-approved { color: var(--good); border-color: var(--good); box-shadow: var(--good-glow); }
+.cs-pill.cs-warn     { color: var(--warn); border-color: var(--warn); }
+.cs-pill.cs-bad      { color: var(--bad);  border-color: var(--bad); }
+.cs-pill.cs-pending  { color: var(--accent); border-color: var(--accent); }
+.cs-detail { margin-top: 10px; font-size: 12.5px; line-height: 1.6; color: var(--text); }
+.cs-note { margin-top: 8px; }
+.cs-err { margin-top: 8px; color: var(--bad); font-size: 12px; }
+.cs-privacy { margin-top: 10px; font-size: 11px; }
+.cs-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+.cs-actions button { padding: 9px 16px; font-size: 12.5px; width: auto; }
+.cs-open { padding: 9px 16px; font-size: 12.5px; }
+
 /* ---- desktop layout upgrade: calculator becomes a two-column console ---- */
 @media (min-width: 1000px) {
   #calculator {
@@ -1720,6 +1788,7 @@ th.sorted .sort-ind { opacity: 1; }
   #calculator > .eyebrow, #calculator > h2 { grid-column: 1 / -1; }
   #calc-form {
     grid-column: 1;
+    grid-row: 3;
     flex-direction: column;
     align-items: stretch;
     gap: 12px;
@@ -1729,7 +1798,9 @@ th.sorted .sort-ind { opacity: 1; }
     background: var(--surface-2);
   }
   #calc-form input[type="date"], #calc-form select { width: 100%; }
-  #calc-out { grid-column: 2; min-width: 0; }
+  /* Output spans the form + status-watch rows so the left rail stays snug. */
+  #calc-out { grid-column: 2; grid-row: 3 / span 2; min-width: 0; }
+  #case-status-mount { grid-column: 1; grid-row: 4; align-self: start; margin-top: 14px; }
 }
 
 /* ===================================================================
