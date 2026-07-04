@@ -54,7 +54,9 @@ The fetch also tries to archive the raw megathread JSON as insurance. Reddit req
 
 The file is gitignored. Without it the archive step fails gracefully — all dashboard analytics work regardless.
 
-## Optional: Case Status Watch (personal, local-only)
+## Optional: Case Status Watch (personal, local-only) — next release
+
+> Feature-flagged off in the current build (`ENABLE_CASE_WATCH` in `dashboard/app.js`); ships in the next release.
 
 The **USCIS status watch** card (under *My timeline*) saves your receipt number **in your browser's localStorage only** — it is never committed, never sent to any server this project runs (there are none), and never routed through a third party.
 

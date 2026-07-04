@@ -36,6 +36,10 @@ import * as panels     from './modules/panels.mjs?v=__BUILD__';
 import * as casestatus from './modules/casestatus.mjs?v=__BUILD__'; // personal USCIS status watch (localStorage-only)
 import * as fx         from './modules/fx.mjs?v=__BUILD__';         // cinematic layer (reveals, ticker, radar blips)
 
+// Feature flags. CASE WATCH is complete behind this flag (module, /api relay,
+// tests) but held for the next release.
+const ENABLE_CASE_WATCH = false;
+
 // Render order = visual order down the page. Each entry is one module's render().
 const MODULES = [
   ['headline', headline],
@@ -48,7 +52,8 @@ const MODULES = [
   ['calendars', calendars],
   ['aggregates', aggregates],
   ['panels', panels],
-  ['casestatus', casestatus],
+  // USCIS status watch is feature-flagged off — ships in the next release.
+  ...(ENABLE_CASE_WATCH ? [['casestatus', casestatus]] : []),
   ['fx', fx],           // LAST: decorates the DOM the data modules just built
 ];
 
