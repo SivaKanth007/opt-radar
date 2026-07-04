@@ -1582,6 +1582,7 @@ section#similar   { --sec-icon: url('data:image/svg+xml,<svg xmlns="http://www.w
 section#wave      { --sec-icon: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round"><path d="M2 12c2.5 0 2.5-5 5-5s2.5 8 5 8 2.5-11 5-11 2.5 8 5 8"/></svg>'); }
 section#approvals { --sec-icon: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg>'); }
 section#calendars { --sec-icon: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4M16 3v4M4 11h16"/></svg>'); }
+section#cardtrack { --sec-icon: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round"><rect x="2.5" y="5.5" width="19" height="13" rx="2.5"/><path d="M2.5 10h19M6.5 15h4"/></svg>'); }
 section#diff      { --sec-icon: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linejoin="round"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z"/></svg>'); }
 section#quality   { --sec-icon: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linejoin="round"><path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3z"/><path d="M9.5 12l2 2 3.5-4"/></svg>'); }
 
@@ -1776,6 +1777,41 @@ th.sorted .sort-ind { opacity: 1; }
 }
 .cs-actions button { padding: 9px 16px; font-size: 12.5px; width: auto; }
 .cs-open { padding: 9px 16px; font-size: 12.5px; }
+
+/* ---- after-approval card tracker (cardtrack.mjs) ---- */
+.ct-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+  margin-top: 18px;
+}
+.ct-countdown {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  padding: 16px 18px;
+}
+.ct-title { margin: 0 0 12px; color: var(--text); font-size: 0.92rem; }
+.ct-controls { display: flex; flex-direction: column; gap: 10px; }
+.ct-controls select, .ct-controls input { width: 100%; }
+.ct-out { margin-top: 14px; }
+.ct-line { font-size: 13.5px; margin-top: 8px; }
+.ct-date {
+  font-family: var(--font-display);
+  font-weight: 700;
+  background: var(--grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--accent); /* fallback */
+}
+.ct-hist h3 { margin-top: 0; }
+.ct-box { height: 200px; margin-top: 10px; }
+
+@media (min-width: 1100px) {
+  .ct-grid { grid-template-columns: 300px minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; }
+  .ct-hist { min-width: 0; }
+}
 
 /* ---- desktop layout upgrade: calculator becomes a two-column console ---- */
 @media (min-width: 1000px) {

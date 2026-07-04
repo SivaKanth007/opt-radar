@@ -21,12 +21,14 @@ import { addBusinessDays, businessDaysBetween } from '../lib/holidays.mjs?v=__BU
 import * as stats from '../lib/stats.mjs?v=__BUILD__';
 import * as cohort from '../lib/cohort.mjs?v=__BUILD__';
 import * as waveLib from '../lib/wave.mjs?v=__BUILD__'; // wave front + premium 30-BD clock analytics
+import * as cardLib from '../lib/cardstats.mjs?v=__BUILD__'; // post-approval card produced/delivered analytics
 
 import * as headline   from './modules/headline.mjs?v=__BUILD__';
 import * as live       from './modules/cheer.mjs?v=__BUILD__';
 import * as timeline   from './modules/timeline.mjs?v=__BUILD__'; // calculator + similar cases
 import * as wave       from './modules/wave.mjs?v=__BUILD__';     // approval wave + premium clock
 import * as trends     from './modules/trends.mjs?v=__BUILD__';
+import * as cardtrack  from './modules/cardtrack.mjs?v=__BUILD__'; // after-approval card tracker
 import * as approvals  from './modules/approvals.mjs?v=__BUILD__';
 import * as calendars  from './modules/calendars.mjs?v=__BUILD__';
 import * as aggregates from './modules/aggregates.mjs?v=__BUILD__';
@@ -41,6 +43,7 @@ const MODULES = [
   ['timeline', timeline],
   ['wave', wave],
   ['trends', trends],
+  ['cardtrack', cardtrack],
   ['approvals', approvals],
   ['calendars', calendars],
   ['aggregates', aggregates],
@@ -82,6 +85,7 @@ function buildCtx(data, diff) {
     stats,
     cohort,
     wave: waveLib,
+    cards: cardLib,
   };
 }
 
