@@ -42,7 +42,7 @@
   </a>
   <nav class="top-links" aria-label="Sections">
     <a href="#headline">Pulse</a>
-    <a href="#calculator">My timeline</a>
+    <a href="#calculator">My journey</a>
     <a href="#wave">Wave</a>
     <a href="#trends">Trends</a>
     <a href="#approvals">Log</a>
@@ -88,7 +88,7 @@
           </div>
         </div>
         <div class="hero-ctas">
-          <a class="btn-primary" href="#calculator">Project my timeline</a>
+          <a class="btn-primary" href="#calculator">Project my journey</a>
           <a class="btn-ghost" href="#live">See today's approvals</a>
         </div>
         <div id="meta"></div>
@@ -175,21 +175,22 @@
        KEEP the <h2> node (trends, funnel, rfe, centers, weekday) carry the
        eyebrow as a data-eyebrow attribute rendered via CSS ::before, so it
        survives re-renders. -->
-  <section id="calculator" data-icon data-ghost="PROJECT">
+  <section id="calculator" data-icon data-ghost="JOURNEY">
     <span class="eyebrow">Personal projection</span>
-    <h2>My timeline</h2>
+    <h2>My journey — application to card in hand</h2>
+    <!-- Stage stepper: timeline.mjs paints actual + projected dates per stage. -->
+    <div id="journey-strip"></div>
     <form id="calc-form"></form>
     <div id="calc-out"></div>
     <!-- Personal USCIS status watch (casestatus.mjs). Receipt number is
          localStorage-only; auto-check needs the local server (CORS). -->
     <div id="case-status-mount"></div>
-  </section>
-
-  <!-- Cases near yours -->
-  <section id="similar" data-icon data-ghost="PEERS">
-    <span class="eyebrow">Peer comparison</span>
-    <h2>Similar cases</h2>
+    <!-- Cases near yours (same flow — timeline.mjs renders into #similar-out) -->
+    <h3 class="flow-head" id="similar-head">People on your timeline</h3>
     <div id="similar-out"></div>
+    <!-- Community card logistics (cardtrack.mjs) — the data behind the last two stages -->
+    <h3 class="flow-head" id="cardtrack-head">Card production &amp; delivery — community stats</h3>
+    <div id="cardtrack-out"></div>
   </section>
 
   <!-- Approval wave: regular queue front + premium 30-business-day clock -->
@@ -201,13 +202,6 @@
 
   <!-- Current trends (module rebuilds section but preserves this h2 node) -->
   <section id="trends" data-ghost="TRENDS"><h2 data-eyebrow="Momentum">Trends</h2></section>
-
-  <!-- Post-approval card logistics: produced + delivered timelines -->
-  <section id="cardtrack" data-icon data-ghost="CARD">
-    <span class="eyebrow">After approval</span>
-    <h2>Card production &amp; delivery</h2>
-    <div id="cardtrack-out"></div>
-  </section>
 
   <!-- Full paginated approvals list (module builds its own h2) -->
   <section id="approvals" data-icon data-ghost="LOG"></section>

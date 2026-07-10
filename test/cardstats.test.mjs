@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cardStats, cardHistogram, cardProjection } from '../lib/cardstats.mjs';
+import { cardStats, cardHistogram, cardProjection, gapDist, journeyStats, journeyCompare } from '../lib/cardstats.mjs';
 
 /** Build an approved case with card dates offset by given day gaps. */
 function mk(approved, prodGap, recvGap, flags) {
@@ -80,4 +80,41 @@ test('cardProjection handles missing stats gracefully', () => {
   const onlyProduced = cardStats([mk('2026-06-01', 6, null)]);
   const p = cardProjection(onlyProduced, '2026-07-01', 'produced');
   assert.equal(p, null); // no produced→received data to project with
+});
+
+test('gapDist works over arbitrary field pairs with a custom cap', () => {
+  const cases = [
+    { date_applied: '2026-03-01', biometrics_date: '2026-03-21' },  // 20d
+    { date_applied: '2026-03-01', biometrics_date: '2026-03-31' },  // 30d
+    { date_applied: '2026-03-01', biometrics_date: '2027-03-01' },  // 365d → dropped at default cap
+  ];
+  const g = gapDist(cases, 'date_applied', 'biometrics_date');
+  assert.equal(g.n, 2);
+  assert.equal(g.p50, 30); // floor-index quantile of [20, 30]
+  const wide = gapDist(cases, 'date_applied', 'biometrics_date', 400);
+  assert.equal(wide.n, 3);
+});
+
+test('journeyStats spans applied → card in hand with the wide cap', () => {
+  // applied 2026-03-01, approved 2026-06-01 (92d), recvGap 5..14 → totals 97..106
+  const cases = Array.from({ length: 10 }, (_, i) => mk('2026-06-01', i + 1, i + 5));
+  const j = journeyStats(cases);
+  assert.equal(j.n, 10);
+  assert.equal(j.p50, 102); // floor-index quantile of 97..106
+});
+
+test('journeyCompare counts similar journeys and the slower share', () => {
+  const cases = Array.from({ length: 10 }, (_, i) => mk('2026-06-01', i + 1, i + 5)); // totals 97..106
+  const c = journeyCompare(cases, 100);
+  assert.equal(c.n, 10);
+  assert.equal(c.fasterThanPct, 60); // 101..106 were slower
+  assert.equal(c.similar, 10);       // all 10 within the default ±7
+  const tight = journeyCompare(cases, 100, 2);
+  assert.equal(tight.similar, 5);    // 98..102
+});
+
+test('journeyCompare gracefully handles bad input', () => {
+  assert.equal(journeyCompare([], 100), null);
+  assert.equal(journeyCompare([mk('2026-06-01', 1, 5)], -3), null);
+  assert.equal(journeyCompare([mk('2026-06-01', 1, 5)], null), null);
 });

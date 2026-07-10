@@ -414,6 +414,35 @@ export function onCaseChange(ctx, myCase) {
   const prior = root.querySelector('[data-cheer-hope]');
   if (prior) prior.remove();
 
+  // Already approved (journey fields) — the wait is over; celebrate, don't count.
+  // card-produced implies approved even when the approval date wasn't entered.
+  if (myCase && (myCase.approved || myCase.produced || myCase.received)) {
+    const panel = el('div', 'glass');
+    panel.dataset.cheerHope = '1';
+    panel.style.marginTop = '14px';
+    panel.style.padding = '18px';
+    const db = ctx.dates?.daysBetween;
+    let head, body;
+    if (myCase.received) {
+      const total = db && myCase.applied ? db(myCase.applied, myCase.received) : null;
+      head = 'Journey complete 🎉';
+      body = (total != null && total >= 0 ? `Card in hand ${total} days after applying. ` : 'Card in hand. ') +
+        'Enjoy it — and consider sharing your timeline to help the next person.';
+    } else {
+      const wait = db && myCase.applied && myCase.approved ? db(myCase.applied, myCase.approved) : null;
+      head = 'Approved 🎉';
+      body = (wait != null && wait >= 0 ? `Approved after a ${wait}-day wait. ` : '') +
+        'Your card countdown is running in "My journey" — produced and delivery dates are projected there.';
+    }
+    const h = el('strong', null, head);
+    h.style.fontSize = '15px';
+    h.style.display = 'block';
+    h.style.marginBottom = '6px';
+    panel.append(h, el('p', 'muted', body));
+    root.append(panel);
+    return;
+  }
+
   const nc = normalizeCase(myCase);
   if (!nc) return; // user cleared their case — leave the live banner alone
 

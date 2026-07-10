@@ -270,6 +270,16 @@ export function onCaseChange(ctx, myCase) {
   line.textContent = '';
   if (!myCase || !myCase.applied) return;
 
+  // Past the approval? The queue is no longer their story — say so instead of
+  // suggesting case inquiries to someone already holding a decision.
+  if (myCase.journeyStage && myCase.journeyStage !== 'pending') {
+    line.className = 'muted';
+    line.textContent = myCase.received
+      ? 'You: card in hand — your journey is done. This chart is for the folks still in the queue. 💙'
+      : `You: approved${myCase.approved ? ` on ${myCase.approved}` : ''} — the wave is behind you now; your card countdown lives in "My journey".`;
+    return;
+  }
+
   const { data, fmt } = ctx;
   const cases = Array.isArray(data?.cases) ? data.cases : [];
   const { waveFront, wavePosition, ppClockDist } = ctx.wave;

@@ -8,8 +8,8 @@ Community analytics dashboard for **OPT / STEM-OPT EAD processing timelines**. M
 
 - Headline stats: earliest/latest approvals, p10/p50/p90 days (naive *and* survival-adjusted)
 - Two calendars: per-application-date approval completion %, and approvals-per-day volume
-- **My Timeline calculator** — enter your applied / biometrics / premium-upgrade dates, get best/typical/worst projected approval dates from a matched cohort, plus conditional estimates ("given you've already waited N days")
-- Similar-cases table with links to the original Reddit reports
+- **My journey** — one flow from application to card in hand. Enter whatever dates you have (applied / biometrics / premium upgrade / approved / card produced / card received): pending cases get best/typical/worst projected approval dates from a matched cohort plus conditional estimates ("given you've already waited N days"), chained into projected card-production and delivery dates; approved cases get a card countdown; completed journeys get a recap — your percentile and how many community journeys finished within a week of yours. A five-stage stepper shows actual vs projected dates at a glance. All personal dates stay in your browser (localStorage).
+- Similar-cases table with links to the original Reddit reports (same flow), plus community card-logistics stats and histograms
 - **Approval wave** — where the regular queue front is right now ("filers who applied ~Mar 19 are getting approved this week"), plus the premium **30-business-day clock**: histogram of business days from clock start (biometrics for premium-from-start, upgrade date for upgrades) to approval
 - Weekly trends, stage funnel, RFE impact, service-center comparison, approvals by weekday
 - Data-quality panel: censoring rates, anomaly flags, source health

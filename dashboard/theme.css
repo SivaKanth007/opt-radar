@@ -1578,11 +1578,9 @@ section#headline  { --sec-icon: url('data:image/svg+xml,<svg xmlns="http://www.w
 section#live      { --sec-icon: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="2"/><path d="M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.6 5.6a9 9 0 0 0 0 12.8M18.4 5.6a9 9 0 0 1 0 12.8"/></svg>'); }
 section#journey   { --sec-icon: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round"><path d="M4 19c4-1 3-6 7-7s4-5 7-6"/><circle cx="4" cy="19" r="1.6"/><circle cx="18" cy="6" r="1.6"/></svg>'); }
 section#calculator{ --sec-icon: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.6"/></svg>'); }
-section#similar   { --sec-icon: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.4 3.4-5 6.5-5s5.7 1.6 6.5 5"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 14.6c2.6.3 4.6 1.7 5.5 4.4"/></svg>'); }
 section#wave      { --sec-icon: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round"><path d="M2 12c2.5 0 2.5-5 5-5s2.5 8 5 8 2.5-11 5-11 2.5 8 5 8"/></svg>'); }
 section#approvals { --sec-icon: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg>'); }
 section#calendars { --sec-icon: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4M16 3v4M4 11h16"/></svg>'); }
-section#cardtrack { --sec-icon: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round"><rect x="2.5" y="5.5" width="19" height="13" rx="2.5"/><path d="M2.5 10h19M6.5 15h4"/></svg>'); }
 section#diff      { --sec-icon: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linejoin="round"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z"/></svg>'); }
 section#quality   { --sec-icon: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linejoin="round"><path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3z"/><path d="M9.5 12l2 2 3.5-4"/></svg>'); }
 
@@ -1778,23 +1776,13 @@ th.sorted .sort-ind { opacity: 1; }
 .cs-actions button { padding: 9px 16px; font-size: 12.5px; width: auto; }
 .cs-open { padding: 9px 16px; font-size: 12.5px; }
 
-/* ---- after-approval card tracker (cardtrack.mjs) ---- */
+/* ---- community card logistics (cardtrack.mjs, inside #calculator) ---- */
 .ct-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: 18px;
   margin-top: 18px;
 }
-.ct-countdown {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  padding: 16px 18px;
-}
-.ct-title { margin: 0 0 12px; color: var(--text); font-size: 0.92rem; }
-.ct-controls { display: flex; flex-direction: column; gap: 10px; }
-.ct-controls select, .ct-controls input { width: 100%; }
-.ct-out { margin-top: 14px; }
 .ct-line { font-size: 13.5px; margin-top: 8px; }
 .ct-date {
   font-family: var(--font-display);
@@ -1809,8 +1797,82 @@ th.sorted .sort-ind { opacity: 1; }
 .ct-box { height: 200px; margin-top: 10px; }
 
 @media (min-width: 1100px) {
-  .ct-grid { grid-template-columns: 300px minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; }
+  .ct-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; }
   .ct-hist { min-width: 0; }
+}
+
+/* ---- journey flow: sub-section headings + form divider ---- */
+.flow-head {
+  margin: 34px 0 4px;
+  padding-top: 26px;
+  border-top: 1px solid var(--border);
+  font-size: 1.02rem;
+  color: var(--text);
+}
+.form-divider {
+  display: block;
+  width: 100%;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+/* ---- journey stepper (timeline.mjs → #journey-strip) ---- */
+#journey-strip { margin: 4px 0 20px; }
+.jr-hint { margin: 0; }
+.jr-strip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.jr-step {
+  position: relative;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  padding: 12px 14px;
+}
+.jr-step .jr-label {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.jr-step .jr-date {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text);
+}
+.jr-step .jr-date.jr-proj { color: var(--muted); }
+.jr-step .jr-sub { display: block; margin-top: 3px; font-size: 11px; color: var(--muted); min-height: 1em; }
+.jr-step.done { border-color: var(--good); }
+.jr-step.done .jr-date { color: var(--good); }
+.jr-step.next { border-color: var(--accent); box-shadow: var(--glow); }
+.jr-step.next .jr-date.jr-proj { color: var(--accent); }
+
+@media (min-width: 760px) {
+  .jr-strip { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .jr-step:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    right: -9px;
+    width: 7px;
+    height: 7px;
+    border-top: 2px solid var(--border-strong);
+    border-right: 2px solid var(--border-strong);
+    transform: translateY(-50%) rotate(45deg);
+    z-index: 1;
+  }
+  .jr-step.done:not(:last-child)::after { border-color: var(--good); }
 }
 
 /* ---- desktop layout upgrade: calculator becomes a two-column console ---- */
@@ -1821,10 +1883,12 @@ th.sorted .sort-ind { opacity: 1; }
     column-gap: 38px;
     align-items: start;
   }
-  #calculator > .eyebrow, #calculator > h2 { grid-column: 1 / -1; }
+  #calculator > .eyebrow { grid-column: 1 / -1; grid-row: 1; }
+  #calculator > h2      { grid-column: 1 / -1; grid-row: 2; }
+  #journey-strip        { grid-column: 1 / -1; grid-row: 3; }
   #calc-form {
     grid-column: 1;
-    grid-row: 3;
+    grid-row: 4;
     flex-direction: column;
     align-items: stretch;
     gap: 12px;
@@ -1835,8 +1899,13 @@ th.sorted .sort-ind { opacity: 1; }
   }
   #calc-form input[type="date"], #calc-form select { width: 100%; }
   /* Output spans the form + status-watch rows so the left rail stays snug. */
-  #calc-out { grid-column: 2; grid-row: 3 / span 2; min-width: 0; }
-  #case-status-mount { grid-column: 1; grid-row: 4; align-self: start; margin-top: 14px; }
+  #calc-out { grid-column: 2; grid-row: 4 / span 2; min-width: 0; }
+  #case-status-mount { grid-column: 1; grid-row: 5; align-self: start; margin-top: 14px; }
+  /* The flow continues full width: similar cases, then community card stats. */
+  #similar-head   { grid-column: 1 / -1; grid-row: 6; }
+  #similar-out    { grid-column: 1 / -1; grid-row: 7; min-width: 0; }
+  #cardtrack-head { grid-column: 1 / -1; grid-row: 8; }
+  #cardtrack-out  { grid-column: 1 / -1; grid-row: 9; min-width: 0; }
 }
 
 /* ===================================================================
@@ -1904,12 +1973,11 @@ th.sorted .sort-ind { opacity: 1; }
   .footer-inner { max-width: 1708px; }
 }
 
-/* Full-HD tier: the tall sections pair up too. */
+/* Full-HD tier: wave + trends pair up (the journey section stays full row —
+   it now carries the stepper, console, similar cases, and card stats). */
 @media (min-width: 1500px) {
-  #calculator { grid-column: span 7; }
-  #similar    { grid-column: span 5; }
-  #wave       { grid-column: span 7; }
-  #trends     { grid-column: span 5; }
+  #wave   { grid-column: span 7; }
+  #trends { grid-column: span 5; }
 
   /* Narrow trends column: charts stack again and stretch to match the
      wave section's height (flex fills the row's stretched height). */
@@ -1919,11 +1987,8 @@ th.sorted .sort-ind { opacity: 1; }
   }
   #trends .chart-box { flex: 1 1 220px; height: auto; min-height: 220px; }
 
-  /* Calculator console: form column can relax a little at this width. */
-  #calculator { grid-template-columns: 310px minmax(0, 1fr); }
-
   #calculator[data-ghost]::after, #wave[data-ghost]::after { font-size: 120px; }
-  #similar[data-ghost]::after, #trends[data-ghost]::after { font-size: 84px; top: -8px; }
+  #trends[data-ghost]::after { font-size: 84px; top: -8px; }
 }
 
 /* Header quick-nav (hidden until there's room). */

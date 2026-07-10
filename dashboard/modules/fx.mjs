@@ -177,7 +177,7 @@ function initSpotlight() {
 
 const DOT_LABELS = {
   hero: 'Top', headline: 'Pulse', live: 'Live', journey: 'The journey',
-  calculator: 'My timeline', similar: 'Similar cases', wave: 'Approval wave',
+  calculator: 'My journey', wave: 'Approval wave',
   trends: 'Trends', approvals: 'All approvals', calendars: 'Calendars',
   funnel: 'Funnel', rfe: 'RFE', centers: 'Centers', weekday: 'Weekdays',
   diff: 'Fresh intel', quality: 'Data quality',

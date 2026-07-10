@@ -37,6 +37,11 @@ const PAGE_SIZE = 15;    // similar-cases table pagination
 // Module-local pagination state for the similar table. Reset whenever the case changes.
 let _simState = { rows: [], page: 0, ctx: null };
 
+// Latest ctx from render(). The submit listener is bound ONCE (permanent form
+// node) but app.js builds a fresh ctx every load — the handler must use the
+// current one, not the first load's snapshot.
+let _ctx = null;
+
 // Module-level Chart.js handle for the approval-chance curve (destroy-before-recreate).
 let _chanceChart = null;
 
@@ -68,11 +73,50 @@ function persist(form) {
       pp: form.elements.pp?.value || '',
       type: form.elements.type?.value || 'initial',
       ppstart: !!form.elements.ppstart?.checked,
+      approved: form.elements.approved?.value || '',
+      produced: form.elements.produced?.value || '',
+      received: form.elements.received?.value || '',
     };
     localStorage.setItem(LS_KEY, JSON.stringify(state));
   } catch {
     /* storage disabled / full — non-fatal */
   }
+}
+
+/**
+ * Prefills for the journey fields, in priority order:
+ * 1. the old card-tracker anchor ('opt-radar-card-anchor', pre-merge store)
+ * 2. the USCIS status watch's last approval reading ("On July 1, 2026, …")
+ *
+ * A field is only filled while its key has NEVER been persisted post-merge
+ * (absent from the saved record). persist() writes every key — including
+ * empty strings — so once the user saves anything, a deliberately cleared
+ * date stays cleared instead of resurrecting from the legacy stores.
+ */
+function migrateJourneyFields(saved) {
+  const out = { ...(saved || {}) };
+  const virgin = (k) => !(k in out);
+  try {
+    const a = JSON.parse(localStorage.getItem('opt-radar-card-anchor') || 'null');
+    if (a && /^\d{4}-\d{2}-\d{2}$/.test(a.date || '')) {
+      if (a.kind === 'produced' && virgin('produced')) out.produced = a.date;
+      if (a.kind === 'approved' && virgin('approved')) out.approved = a.date;
+    }
+  } catch { /* corrupt/absent — skip */ }
+  try {
+    const w = JSON.parse(localStorage.getItem('opt-radar-case-watch') || 'null');
+    const last = w?.last;
+    if (last?.kind === 'approved' && virgin('approved') && virgin('produced')) {
+      const m = String(last.detail || '').match(/on ([A-Z][a-z]+ \d{1,2}, \d{4})/i);
+      const t = m ? new Date(m[1] + ' 12:00:00') : null; // noon dodges tz day-shift
+      if (t && !isNaN(t)) {
+        const iso = t.toISOString().slice(0, 10);
+        if (/card .*(being )?produced|card was mailed/i.test(last.status || '')) out.produced = iso;
+        else out.approved = iso;
+      }
+    }
+  } catch { /* corrupt/absent — skip */ }
+  return out;
 }
 
 /** Status label for a case row: 'approved' | 'stale' | 'pending'. */
@@ -120,6 +164,7 @@ function chanceColors() {
 
 export function render(ctx) {
   const { $, el } = ctx;
+  _ctx = ctx; // keep the once-bound submit handler on the current snapshot
   const form = $('#calc-form');
   if (!form) return; // section missing — nothing to do
 
@@ -137,10 +182,14 @@ export function render(ctx) {
         </select>
       </label>
       <label><input type="checkbox" name="ppstart"> Premium from start</label>
-      <button type="submit">Project my timeline</button>`;
+      <span class="form-divider">Got further? Fill what you have — everything below is optional.</span>
+      <label>Approved <input type="date" name="approved"></label>
+      <label>Card produced <input type="date" name="produced"></label>
+      <label>Card in hand <input type="date" name="received"></label>
+      <button type="submit">Project my journey</button>`;
 
-    // Restore saved inputs.
-    const saved = loadSaved();
+    // Restore saved inputs (+ one-time prefill from pre-merge stores).
+    const saved = migrateJourneyFields(loadSaved());
     if (saved) {
       for (const [k, v] of Object.entries(saved)) {
         const f = form.elements[k];
@@ -152,7 +201,7 @@ export function render(ctx) {
 
     form.addEventListener('submit', (e) => {
       e.preventDefault();
-      compute(ctx, /* fromSubmit */ true);
+      compute(_ctx || ctx, /* fromSubmit */ true);
     });
   }
 
@@ -160,13 +209,16 @@ export function render(ctx) {
   if (form.elements.applied && form.elements.applied.value) {
     compute(ctx, /* fromSubmit */ false);
   } else {
-    // No saved case yet: gentle placeholder + ensure similar panel has an empty state.
+    // No applied date: reset ALL three panels together so a re-render never
+    // leaves a stale projection next to an empty stepper/similar panel.
+    destroyChanceChart();
     const out = $('#calc-out');
-    if (out && !out.childElementCount) {
+    if (out) {
       out.replaceChildren(el('p', 'muted',
-        'Enter your applied date above and hit Project to see where you stand against ~comparable cases.'));
+        'Enter your applied date (and any later milestones you\'ve hit) and hit Project to see your whole journey against comparable cases.'));
     }
-    renderSimilarEmpty(ctx, 'Project your timeline above to see cases similar to yours.');
+    paintStepper(ctx, null);
+    renderSimilarEmpty(ctx, 'Project your journey above to see cases similar to yours.');
   }
 }
 
@@ -194,12 +246,18 @@ function compute(ctx, fromSubmit) {
   const v = Object.fromEntries(new FormData(form));
   const applied = v.applied || '';
   if (!applied) {
-    out.replaceChildren(el('p', 'muted', 'Enter your applied date to project your timeline.'));
+    out.replaceChildren(el('p', 'muted', 'Enter your applied date to project your journey.'));
+    paintStepper(ctx, null);
     return;
   }
   const type = v.type || 'initial';
   const biometrics = v.biometrics || '';
   const pp = v.pp || '';
+  // Journey milestones (all optional) — they decide which stage the console shows.
+  const approvedD = v.approved || '';
+  const producedD = v.produced || '';
+  const receivedD = v.received || '';
+  const stage = receivedD ? 'complete' : producedD ? 'produced' : approvedD ? 'approved' : 'pending';
   const ppStartChecked = !!form.elements.ppstart?.checked;
 
   // premium = checkbox OR a pp date provided. Premium CLOCK START (the
@@ -213,9 +271,43 @@ function compute(ctx, fromSubmit) {
   const start = ppMode ? ppStart : applied;
 
   const today = data?.today || localToday();
-
-  // Cohort + observations — HONOR THE PAIRING CONTRACT EXACTLY.
   const cases = Array.isArray(data?.cases) ? data.cases : [];
+  const cardSt = ctx.cards?.cardStats ? ctx.cards.cardStats(cases) : null;
+
+  // The shared myCase object — set even on the empty path so cheer/similar can react.
+  const myCaseBase = {
+    applied, biometrics, pp, type, premium, ppStart,
+    approved: approvedD || null,
+    produced: producedD || null,
+    received: receivedD || null,
+    journeyStage: stage,
+    projection: { p10Date: null, p50Date: null, p90Date: null, kmP50Date: null },
+  };
+
+  // Date-order sanity — warn, never block (people mistype; the math guards itself).
+  const orderProblems = [];
+  const chk = (a, b, label) => { if (a && b && daysBetween(a, b) < 0) orderProblems.push(label); };
+  chk(applied, approvedD, 'approved is before applied');
+  chk(approvedD || applied, producedD, 'card produced is before approval');
+  chk(producedD || approvedD || applied, receivedD, 'card received is before produced');
+
+  // ---- POST-APPROVAL BRANCH: the approval question is settled — the console
+  // becomes a card countdown / full-journey recap instead of survival math.
+  if (stage !== 'pending') {
+    const model = {
+      applied, biometrics, approved: approvedD, produced: producedD, received: receivedD,
+      stage, today, cardSt,
+    };
+    paintStepper(ctx, journeyStepperModel(ctx, model));
+    renderJourneyConsole(ctx, out, model, orderProblems);
+    const complete = stage === 'complete' && !orderProblems.length;
+    commitCase(ctx, myCaseBase, /* celebrate */ fromSubmit && complete,
+      { toast, confetti, prefersReducedMotion },
+      'Card in hand — journey complete. Congratulations! 🎉');
+    return;
+  }
+
+  // ---- PENDING BRANCH: cohort + observations — HONOR THE PAIRING CONTRACT EXACTLY.
   const { cohort, windowDays, premiumFilterDropped } = matchCohort(cases, {
     refDate: start,
     optType: type,
@@ -223,18 +315,13 @@ function compute(ctx, fromSubmit) {
     dateField: ppMode ? 'pp_start' : 'date_applied',
   });
 
-  // The shared myCase object — set even on the empty path so cheer/similar can react.
-  const myCaseBase = {
-    applied, biometrics, pp, type, premium, ppStart,
-    projection: { p10Date: null, p50Date: null, p90Date: null, kmP50Date: null },
-  };
-
   // EMPTY-COHORT GUARD: no comparable cases. Show a clear message, still update
   // similar cases, set state, emit, and return (no all-dash table, no spurious
   // 'premium filter dropped' note).
   if (!cohort || cohort.length === 0) {
     out.replaceChildren(el('p', 'muted',
       'No comparable cases in the data for these dates and type — try a different applied date, type, or toggle premium.'));
+    paintStepper(ctx, journeyStepperModel(ctx, { applied, biometrics, stage, today, cardSt }));
     commitCase(ctx, myCaseBase, /* fromSubmit */ false);
     return;
   }
@@ -337,14 +424,40 @@ function compute(ctx, fromSubmit) {
   out.append(el('p', 'muted',
     'Naive uses approved cases only (biased fast). Survival-adjusted counts pending cases as "at least N days" (Kaplan-Meier) and is the more honest estimate. Waits have been lengthening recently — these are projections, not promises.'));
 
+  const kmP10Date = kmP10 == null ? null : addDays(start, kmP10);
+  const kmP50Date = kmP50 == null ? null : addDays(start, kmP50);
+  const kmP90Date = kmP90 == null ? null : addDays(start, kmP90);
+
+  // ---- Then your card: chain the community card medians off the projected
+  // approval, so the whole journey is visible from day one.
+  if (cardSt && kmP50Date && ctx.cards?.cardProjection) {
+    const chain = ctx.cards.cardProjection(cardSt, kmP50Date, 'approved');
+    if (chain && (chain.producedP50 || chain.deliveredP50)) {
+      out.append(el('h3', null, 'Then your card — chained off the typical approval date'));
+      if (chain.producedP50) out.append(ctLine(ctx, 'Card produced', chain.producedP50));
+      if (chain.deliveredP50) {
+        const slow = (kmP90Date && cardSt.a2r) ? addDays(kmP90Date, cardSt.a2r.p90) : null;
+        out.append(ctLine(ctx, 'In your mailbox', chain.deliveredP50, slow, 'slow lane: by'));
+      }
+      out.append(el('p', 'muted',
+        `Chained medians (typical approval date + community card logistics · ${chain.basis.a2p || 0} produced / ` +
+        `${chain.basis.a2r || 0} delivered reports). Rough by construction — enter your approval date once it lands and this sharpens.`));
+    }
+  }
+
+  paintStepper(ctx, journeyStepperModel(ctx, {
+    applied, biometrics, stage: 'pending', today, cardSt,
+    projApprovedDate: kmP50Date,
+  }));
+
   // ---- Commit shared state + emit ----
   const myCase = {
     ...myCaseBase,
     projection: {
-      p10Date: kmP10 == null ? null : addDays(start, kmP10),
-      p50Date: kmP50 == null ? null : addDays(start, kmP50),
-      p90Date: kmP90 == null ? null : addDays(start, kmP90),
-      kmP50Date: kmP50 == null ? null : addDays(start, kmP50),
+      p10Date: kmP10Date,
+      p50Date: kmP50Date,
+      p90Date: kmP90Date,
+      kmP50Date,
     },
   };
 
@@ -358,7 +471,7 @@ function compute(ctx, fromSubmit) {
  * commitCase — set ctx.state.myCase, emit 'caseChange', refresh similar panel,
  * and optionally fire a celebration (only when celebrate=true).
  */
-function commitCase(ctx, myCase, celebrate, fx) {
+function commitCase(ctx, myCase, celebrate, fx, message) {
   ctx.state = ctx.state || {};
   ctx.state.myCase = myCase;
   // Refresh similar cases directly (also re-rendered by the bus listener in app.js).
@@ -367,9 +480,272 @@ function commitCase(ctx, myCase, celebrate, fx) {
     ctx.bus.emit('caseChange', myCase);
   }
   if (celebrate && fx && !fx.prefersReducedMotion()) {
-    fx.toast('You\'re past the typical wait — approvals around your mark are landing now. Hang in there.', 'good');
+    fx.toast(message ||
+      'You\'re past the typical wait — approvals around your mark are landing now. Hang in there.', 'good');
     fx.confetti({ count: 90 });
   }
+}
+
+// ---------------------------------------------------------------------------
+// Journey stepper + post-approval console
+// ---------------------------------------------------------------------------
+
+/** "Jul 8" this year, "Jul 8, 2025" otherwise. Falls back to the raw ISO. */
+function fmtNice(iso) {
+  if (!iso) return '—';
+  const t = new Date(iso + 'T12:00:00'); // noon dodges timezone day-shift
+  if (isNaN(t)) return iso;
+  const opts = { month: 'short', day: 'numeric' };
+  if (t.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
+  return t.toLocaleDateString(undefined, opts);
+}
+
+/** One projection line: "Card produced ~Jul 7 · almost certainly by Jul 9". */
+function ctLine(ctx, label, p50Iso, p90Iso, p90Label = 'almost certainly by') {
+  const { el } = ctx;
+  const p = el('p', 'ct-line');
+  p.append(document.createTextNode(label + ' '));
+  p.append(el('strong', 'ct-date', `~${fmtNice(p50Iso)}`));
+  if (p90Iso) p.append(el('span', 'muted', ` · ${p90Label} ${fmtNice(p90Iso)}`));
+  return p;
+}
+
+/**
+ * journeyStepperModel — resolve the projected date for every stage the user
+ * hasn't reached, chaining community medians off the latest known anchor
+ * (pending → projected approval; approved → a2p/a2r; produced → p2r).
+ */
+function journeyStepperModel(ctx, m) {
+  const { addDays } = ctx.dates;
+  const cardSt = m.cardSt;
+  let projBio = null, projApproved = null, projProduced = null, projReceived = null;
+
+  if (m.stage === 'pending' || !m.stage) {
+    projApproved = m.projApprovedDate || null;
+    if (projApproved && cardSt) {
+      if (cardSt.a2p) projProduced = addDays(projApproved, cardSt.a2p.p50);
+      if (cardSt.a2r) projReceived = addDays(projApproved, cardSt.a2r.p50);
+    }
+    // Biometrics: only project while the typical date is still ahead.
+    if (!m.biometrics && ctx.cards?.gapDist) {
+      const bio = ctx.cards.gapDist(ctx.data?.cases || [], 'date_applied', 'biometrics_date');
+      if (bio) {
+        const d = addDays(m.applied, bio.p50);
+        if (m.today && d >= m.today) projBio = d;
+      }
+    }
+  } else if (m.stage === 'approved') {
+    if (cardSt?.a2p) projProduced = addDays(m.approved, cardSt.a2p.p50);
+    if (cardSt?.a2r) projReceived = addDays(m.approved, cardSt.a2r.p50);
+  } else if (m.stage === 'produced') {
+    if (cardSt?.p2r) projReceived = addDays(m.produced, cardSt.p2r.p50);
+  }
+  return { ...m, projBio, projApproved, projProduced, projReceived };
+}
+
+/** Paint the five-stage strip into #journey-strip. model=null → hint only. */
+function paintStepper(ctx, model) {
+  const { $, el } = ctx;
+  const host = $('#journey-strip');
+  if (!host) return;
+  host.replaceChildren();
+
+  if (!model) {
+    host.append(el('p', 'muted jr-hint',
+      'Your five milestones appear here — enter your dates below and the journey lights up as you go.'));
+    return;
+  }
+
+  const { daysBetween } = ctx.dates;
+  const steps = [
+    { label: 'Applied', actual: model.applied },
+    { label: 'Biometrics', actual: model.biometrics, proj: model.projBio, prev: model.applied, optional: true },
+    { label: 'Approved', actual: model.approved, proj: model.projApproved, prev: model.applied, delta: 'from filing' },
+    { label: 'Card produced', actual: model.produced, proj: model.projProduced, prev: model.approved, delta: 'after approval' },
+    { label: 'Card in hand', actual: model.received, proj: model.projReceived,
+      prev: model.produced || model.approved, delta: model.produced ? 'in the mail' : 'after approval' },
+  ];
+
+  let lastDone = 0;
+  steps.forEach((s, i) => { if (s.actual) lastDone = i; });
+  const nextIdx = steps.findIndex((s, i) => !s.actual && i > lastDone);
+
+  const strip = el('div', 'jr-strip');
+  steps.forEach((s, i) => {
+    const state = s.actual ? 'done' : (i === nextIdx ? 'next' : 'todo');
+    const node = el('div', `jr-step ${state}`);
+    node.append(el('span', 'jr-label', s.label));
+    if (s.actual) {
+      node.append(el('span', 'jr-date', fmtNice(s.actual)));
+      const d = s.prev ? daysBetween(s.prev, s.actual) : null;
+      node.append(el('span', 'jr-sub',
+        s.prev == null ? 'day 0' : (d != null && d >= 0 ? `+${d}d ${s.delta || ''}`.trim() : ' ')));
+    } else if (s.proj) {
+      node.append(el('span', 'jr-date jr-proj', `~${fmtNice(s.proj)}`));
+      node.append(el('span', 'jr-sub', 'typical · projected'));
+    } else {
+      node.append(el('span', 'jr-date jr-proj', '—'));
+      node.append(el('span', 'jr-sub', s.optional ? 'optional' : ' '));
+    }
+    strip.append(node);
+  });
+  host.append(strip);
+}
+
+/**
+ * renderJourneyConsole — replaces the survival console once the approval
+ * question is settled. Three faces: approved (card countdown), produced
+ * (delivery countdown), complete (full-journey recap vs the community).
+ */
+function renderJourneyConsole(ctx, out, model, orderProblems) {
+  const { el, fmt, wrapTable } = ctx;
+  const { daysBetween } = ctx.dates;
+  const cases = Array.isArray(ctx.data?.cases) ? ctx.data.cases : [];
+  const cardSt = model.cardSt;
+
+  out.replaceChildren();
+
+  if (orderProblems.length) {
+    const warn = el('p', null, `Check your dates — ${orderProblems.join('; ')}. Everything below uses them as entered.`);
+    warn.style.color = 'var(--warn)';
+    out.append(warn);
+  }
+
+  const wait = model.approved ? daysBetween(model.applied, model.approved) : null;
+  const basisLine = (b) => el('p', 'muted',
+    `based on ${b.a2p ?? b.p2r ?? 0}${b.a2p != null ? ` produced / ${b.a2r ?? 0} delivered` : ' delivered'} community reports` +
+    ' · your dates stay in this browser only');
+
+  // ---- APPROVED: countdown to card produced + delivered -------------------
+  if (model.stage === 'approved') {
+    const head = el('p');
+    head.append(el('strong', null, `Approved on ${fmtNice(model.approved)}`));
+    if (wait != null && wait >= 0) head.append(el('span', 'muted', ` · after a ${wait}-day wait`));
+    out.append(head);
+
+    const proj = (cardSt && ctx.cards?.cardProjection) ? ctx.cards.cardProjection(cardSt, model.approved, 'approved') : null;
+    if (proj) {
+      if (proj.producedP50) out.append(ctLine(ctx, 'Card produced', proj.producedP50, proj.producedP90));
+      if (proj.deliveredP50) out.append(ctLine(ctx, 'In your mailbox', proj.deliveredP50, proj.deliveredP90));
+      if (proj.deliveredP90 && model.today > proj.deliveredP90) {
+        const late = el('p', null,
+          `You're past the point where 9 in 10 cards have arrived (${fmtNice(proj.deliveredP90)}). ` +
+          'Worth checking your address on USCIS and, if it still says nothing, filing an e-request for card delivery.');
+        late.style.color = 'var(--warn)';
+        out.append(late);
+      }
+      out.append(basisLine(proj.basis));
+    } else {
+      out.append(el('p', 'muted', 'No community card reports yet to project your card dates from.'));
+    }
+    return;
+  }
+
+  // ---- PRODUCED: countdown to delivery ------------------------------------
+  if (model.stage === 'produced') {
+    const recap = el('div', 'cards');
+    const chip = (value, label) => {
+      const c = el('div', 'card');
+      c.append(el('div', 'value', value), el('div', 'label', label));
+      recap.append(c);
+    };
+    if (wait != null && wait >= 0) chip(`${fmt(wait)} d`, 'applied → approved');
+    if (model.approved) {
+      const a2p = daysBetween(model.approved, model.produced);
+      if (a2p != null && a2p >= 0) {
+        chip(`${fmt(a2p)} d`, `approved → produced${cardSt?.a2p ? ` (community median ${cardSt.a2p.p50})` : ''}`);
+      }
+    }
+    if (recap.childElementCount) out.append(recap);
+
+    const head = el('p');
+    head.append(el('strong', null, `Card produced ${fmtNice(model.produced)}`),
+      el('span', 'muted', ' — it\'s at the printer or already with USPS.'));
+    out.append(head);
+
+    const proj = (cardSt && ctx.cards?.cardProjection) ? ctx.cards.cardProjection(cardSt, model.produced, 'produced') : null;
+    if (proj && proj.deliveredP50) {
+      out.append(ctLine(ctx, 'In your mailbox', proj.deliveredP50, proj.deliveredP90));
+      if (proj.deliveredP90 && model.today > proj.deliveredP90) {
+        const late = el('p', null,
+          `Your card has been "produced" longer than 9 in 10 delivered cases took (${fmtNice(proj.deliveredP90)}). ` +
+          'Check USPS Informed Delivery and your USCIS mailing address; an e-request is reasonable at this point.');
+        late.style.color = 'var(--warn)';
+        out.append(late);
+      }
+      out.append(basisLine(proj.basis));
+    } else {
+      out.append(el('p', 'muted', 'No produced→delivered reports in the data yet to project from.'));
+    }
+    return;
+  }
+
+  // ---- COMPLETE: full-journey recap vs the community -----------------------
+  const total = daysBetween(model.applied, model.received);
+  if (total == null || total < 0) {
+    out.append(el('p', 'muted', 'Fix the dates above to see your full-journey recap.'));
+    return;
+  }
+
+  const cmp = ctx.cards?.journeyCompare ? ctx.cards.journeyCompare(cases, total) : null;
+
+  const cards = el('div', 'cards');
+  const stat = (cls, value, label) => {
+    const c = el('div', cls ? `card ${cls}` : 'card');
+    c.append(el('div', 'value', value), el('div', 'label', label));
+    cards.append(c);
+    return c;
+  };
+  stat('good', `${fmt(total)} d`, 'applied → card in hand, end to end');
+  if (cmp) {
+    stat('', `${cmp.fasterThanPct}%`, `of ${cmp.n} completed journeys were slower than yours`);
+    const simCard = stat('', String(cmp.similar), `journeys finished within ±${cmp.window} days of yours`);
+    ctx.explain?.(simCard, () => ({
+      title: 'Completed journeys like yours',
+      lines: [
+        ['completed journeys in the data', String(cmp.n)],
+        [`within ±${cmp.window} days of your ${total}`, String(cmp.similar)],
+        ['community median', `${cmp.p50} days`],
+        ['community p90', `${cmp.p90} days`],
+      ],
+      note: 'Counts every clean case reporting both an applied date and a card-received date.',
+    }));
+  }
+  out.append(cards);
+
+  // Per-stage breakdown: you vs the community median, only for legs you reported.
+  const legs = [];
+  if (wait != null && wait >= 0) {
+    const g = ctx.cards?.gapDist ? ctx.cards.gapDist(cases, 'date_applied', 'date_approved', 500) : null;
+    legs.push(['Applied → approved', wait, g?.p50]);
+  }
+  if (model.approved && model.produced) {
+    const d = daysBetween(model.approved, model.produced);
+    if (d != null && d >= 0) legs.push(['Approved → card produced', d, cardSt?.a2p?.p50]);
+  }
+  if (model.produced) {
+    const d = daysBetween(model.produced, model.received);
+    if (d != null && d >= 0) legs.push(['Produced → in your mailbox', d, cardSt?.p2r?.p50]);
+  }
+  legs.push(['End to end', total, cmp?.p50]);
+
+  if (legs.length) {
+    const tbl = el('table');
+    tbl.innerHTML = '<tr><th>Stage</th><th>You</th><th>Community median</th></tr>';
+    for (const [label, you, med] of legs) {
+      const tr = el('tr');
+      tr.append(
+        el('td', null, label),
+        el('td', null, `${you} d`),
+        el('td', null, med != null ? `${med} d` : '—'),
+      );
+      tbl.append(tr);
+    }
+    out.append(wrapTable(tbl));
+  }
+
+  out.append(el('p', 'muted',
+    'Journey complete — congratulations! 🎉 Your data points would help the next person: consider reporting your timeline on the r/f1visa megathread.'));
 }
 
 // ---------------------------------------------------------------------------
@@ -740,6 +1116,16 @@ function renderSimilar(ctx, myCase) {
   out.append(el('p', 'muted',
     `Reported: ${Math.round(ratePct)}% · Adjusted for silent drop-offs (${stalePending} stale case${stalePending === 1 ? '' : 's'} excluded): ${Math.round(adjPct)}%. ` +
     'Most people stop updating once approved — the adjusted figure is the better estimate; true denials are rare.'));
+
+  // Personal benchmark once the user is approved: where their wait landed.
+  const myWait = myCase.approved ? daysBetween(myCase.applied, myCase.approved) : null;
+  if (myWait != null && myWait >= 0 && apprDurs.length) {
+    const slower = apprDurs.filter(d => d > myWait).length;
+    const bench = el('p', null,
+      `You: approved in ${myWait} days — faster than ${slower} of the ${apprDurs.length} approved peers in this window.`);
+    bench.style.color = 'var(--good)';
+    out.append(bench);
+  }
 
   // ---- Paginated table ----
   _simState = { rows: sims, page: 0, ctx, today };
